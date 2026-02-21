@@ -1,0 +1,22 @@
+[package]
+name = "wobblechar"
+version = "0.1.0"
+edition = "2024"
+description = "Convert ASCII timing diagrams to callback-based events for testing and simulation."
+license = "MIT OR Apache-2.0"  # Kies een license
+keywords = ["ascii", "waveform", "signal", "testing", "text waveform", 
+    "Unicode waveform", "UTF-8 waveform", "character-based waveform", "embedded",
+    "no-std"]
+categories = ["development-tools::testing", "embedded", "no-std"]
+
+[dependencies]
+log = "0.4.29"
+num-traits = "0.2.19"
+heapless = "0.8"
+
+[features]
+default = ["std"]  # `std` is on by default
+std = []
+
+[dev-dependencies]
+test-log = "0.2.19"

@@ -1,0 +1,505 @@
+use log::{error, warn};
+mod mapper;
+use core::marker::PhantomData;
+use core::iter::Peekable;
+use core::str::Chars;
+use mapper::Mapper;
+use mapper::default::{BoolMapper, NumMapper};
+use heapless::Vec;
+pub struct Item<T,const N:usize > {
+    pub values: Vec<T, N>,
+    pub index: usize,
+    pub changed: bool,
+}
+impl <T, const N:usize> Item<T, N> {
+    fn new() -> Self {
+        let values: Vec<T, N> = Vec::new();
+        Self {
+            values,
+            index: 0,
+            changed: false,
+        }
+    }
+}
+enum Label<'a> {
+    Undef,
+    NoLabel,
+    Label(&'a str)
+}
+use Label::*;
+struct Line<'a> {
+    pub content: &'a str,
+    pub label: Label<'a>,
+}
+impl<'a> Line<'a> {
+    pub fn new(content: &'a str) -> Self {
+        Self {
+            content,
+            label: Undef,
+        }
+    }
+    pub fn get_label(&mut self) -> Option<&'a str> {
+        match self.label {
+            NoLabel => None,
+            Label(str) => Some(str),
+            Undef => {
+                // @todo find label here
+None
+            }
+        } 
+    }
+}
+
+
+
+type LineIters<'a,const N:usize> = Vec<Peekable<Chars<'a>>, N>;
+pub struct Parser<'a, M, const N:usize>
+    where M:Mapper
+{
+    line_iters: LineIters<'a, N>,
+    index: usize,
+    last_values: Option<Vec<M::Output,N>>,
+    mapper: M,
+    _phantom: PhantomData<M::Output>,
+}
+
+impl<'a, const N: usize> Parser<'a, BoolMapper, N>
+where
+    <BoolMapper as Mapper>::Output: PartialEq,
+{
+    pub fn new_bool_default(waveform: &'a str) -> Self {
+        let mapper = BoolMapper::new();
+        Self::new(waveform, mapper)
+    }
+}
+
+impl<'a, T, const N: usize> Parser<'a, NumMapper<T>, N>
+    where T: num_traits::Num + Copy
+{
+    pub fn new_num_default(waveform: &'a str) -> Self {
+        let mapper = NumMapper::<T>::new();
+        Parser::new(waveform, mapper)
+    }
+}
+
+impl<'a, M, const N: usize> Parser<'a, M, N>
+    where M: Mapper,
+{
+
+    pub fn new(waveform: &'a str, mapper: M) -> Self {
+        let line_iters = Self::waveform_to_iters(waveform);
+        let last_values: Option<Vec<M::Output, N>> = None;
+        Self {
+            line_iters,
+            index: 0,
+            last_values,
+            mapper,
+            _phantom: PhantomData,
+        }
+    }
+    
+    // have a vec of iterators per line, with the already trimmed lines.
+    // @todo: nieuw idee: alle regels volledig trim doen, split op newline (of 
+    //        variabele delim, maar dat lijkt me niet echt nodig). Lege regels negeren.
+    //        Dan labels ondersteunen. Als label vaker terugkomt, dan chainen
+    //        we de iterator.
+    //        Dan kan dit dus:
+    // 
+    // D0:  _|‾‾|___
+    // D1:  ___|‾‾|_
+    //
+    // D0:  |‾‾|___
+    // D1:  __|‾‾|_
+    // 
+    // Zonder labels is gewoon elke regel een signaal. Met labels symbol-tabel 
+    // bijhoduen. Syntax kan dan zijn: \w+: aan begin regel is label. Lijkt me
+    // onnodig om deze syntax instelbaar te maken...
+    fn waveform_to_iters(waveform: &str) -> LineIters<'_,N>
+    {
+        waveform
+            .lines().map(|line| line.trim_start().chars().peekable())
+            .collect()
+    }
+
+}
+
+impl<'a, M, const N:usize> Iterator for Parser<'a, M,  N>
+    where M: Mapper
+{
+    type Item = Item<M::Output, N>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut item = Item::<M::Output,N>::new();
+        let mut eols:Vec<usize,N> = Vec::new();
+        for (line,iter) in self.line_iters.iter_mut().enumerate() {
+            let last_value = if let Some(ref last_values) = self.last_values {
+                Some(last_values[line])
+            } else {
+                None
+            };
+            let c = iter.next();
+            let val = if let Some(c) = c {
+                if self.mapper.is_toggle(c) {
+                    // Toggle character forces changed to true
+                    item.changed = true;
+                    if let Some(last_value) = last_value {
+                        // toggle the last value
+                        self.mapper.toggle(last_value)
+                    } else {
+                        // If no last value, Look at next character
+                        if let Some(&n) = iter.peek() {
+                            if self.mapper.is_toggle(n) {
+                                // This is an unexpected case: There is no 
+                                //last-value AND no ext value. Assume low at start.
+                                warn!("Cannot infer level for toggle at index {}, using default low as start.", self.index);
+                                self.mapper.high()
+                            } else {
+                                if let Some(v) = self.mapper.value(n) {
+                                    v
+                                } else {
+                                    error!("Unknown character, at index {}, stop parsing", self.index);
+                                    return None;
+                                }
+                            }
+                        } else {
+                            // This is an unexpected case: There is no last-value AND no no ext value.
+                            warn!("Cannot infer level for toggle at index {}, using default low as start.", self.index);
+                            self.mapper.high()
+                        }
+                    }
+                } else {
+                    if let Some(v) = self.mapper.value(c) {
+                        v
+                    } else {
+                        error!("Unknown character, at index {}, stop parsing", self.index);
+                        return None;
+                    }
+                }
+            } else {
+                // End of line here.
+                let _ = eols.push(line);
+                // Keep the last value, or the default if none.
+                last_value.unwrap_or_else(|| self.mapper.default())
+            };
+            // If not yet changed, IF there is a last value, compare. If not, don't mark as changed
+            item.changed = item.changed || if let Some(last_value) = last_value {
+                val != last_value
+            } else {
+                false
+            };
+            let _ = item.values.push(val);
+        }
+        item.index = self.index;
+        self.index += 1;
+        self.last_values = Some(item.values.clone());
+
+        // If any line returned some value, return the item. 
+        if eols.len() < self.line_iters.len() {
+            if eols.len() > 0 {
+                warn!("Line(s) {:?} are only {} long. Other lines are longer.", eols, self.index);
+            }
+            Some(item)
+        } else {
+            None
+        }
+    }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+    struct Rec {
+        changed: bool,
+        value: bool,
+    }
+
+    struct AsciiToEvtTc {
+        case: &'static str,
+        exp: &'static [Rec],
+    }
+
+    // # Special cases
+    // Empty
+    const CASE_1_1: &str = "";
+    const EXP_1_1: [Rec; 0] = [];
+    // No edge low
+    const CASE_1_2: &str = "_";
+    const EXP_1_2: [Rec; 1] = [Rec {changed: false, value:false}];
+    // No edge high
+    const CASE_1_3: &str = "‾";
+    const EXP_1_3: [Rec; 1] = [Rec {changed: false, value:true}];
+
+    // # Cases with |
+    // Only |
+    const CASE_1_4: &str = "|";
+    const EXP_1_4: [Rec; 1] = [Rec {changed: true, value:true}];
+    // Only | end after _
+    const CASE_1_5: &str = "_|";
+    const EXP_1_5: [Rec; 2] = [
+        Rec {changed: false, value:false},
+        Rec {changed: true, value:true},
+    ];
+    // Only | end after X
+    const CASE_1_6: &str = "‾|";
+    const EXP_1_6: [Rec; 2] = [
+        Rec {changed: false, value:true},
+        Rec {changed: true, value:false},
+    ];
+    // Only || -> Assumes low at start
+    const CASE_1_7: &str = "||";
+    const EXP_1_7: [Rec; 2] = [
+        Rec {changed: true, value:true},
+        Rec {changed: true, value:false},
+    ];
+    // || at start -> Assumes low at start
+    const CASE_1_8: &str = "||_";
+    const EXP_1_8: [Rec; 3] = [
+        Rec {changed: true, value:true},
+        Rec {changed: true, value:false},
+        Rec {changed: false, value:false},
+    ];
+    // Normal edge up
+    const CASE_1_9: &str = "_|‾";
+    const EXP_1_9: [Rec; 3] = [
+        Rec {changed: false, value:false},
+        Rec {changed: true, value:true},
+        Rec {changed: false, value:true},
+    ];
+    // Normal edge down
+    const CASE_1_10: &str = "‾|_";
+    const EXP_1_10: [Rec; 3] = [
+        Rec {changed: false, value:true},
+        Rec {changed: true, value:false},
+        Rec {changed: false, value:false},
+    ];
+    // Only | between low
+    const CASE_1_11: &str = "_|_";
+    const EXP_1_11: [Rec; 3] = [
+        Rec {changed: false, value:false},
+        Rec {changed: true, value:true},
+        Rec {changed: true, value:false},
+    ];
+    // Only | between high
+    const CASE_1_12: &str = "‾|‾";
+    const EXP_1_12: [Rec; 3] = [
+        Rec {changed: false, value:true},
+        Rec {changed: true, value:false},
+        Rec {changed: true, value:true},
+    ];
+    // Double | between low
+    const CASE_1_13: &str = "_||_";
+    const EXP_1_13: [Rec; 4] = [
+        Rec {changed: false, value:false},
+        Rec {changed: true, value:true},
+        Rec {changed: true, value:false},
+        Rec {changed: false, value:false},
+    ];
+    // Double | between high
+    const CASE_1_14: &str = "‾||‾";
+    const EXP_1_14: [Rec; 4] = [
+        Rec {changed: false, value:true},
+        Rec {changed: true, value:false},
+        Rec {changed: true, value:true},
+        Rec {changed: false, value:true},
+    ];
+
+    // Normal pulise from low
+    const CASE_1_15: &str = "_|‾|_";
+    const EXP_1_15: [Rec; 5] = [
+        Rec {changed: false, value:false},
+        Rec {changed: true, value:true},
+        Rec {changed: false, value:true},
+        Rec {changed: true, value:false},
+        Rec {changed: false, value:false},
+    ];
+    // Normal pulse from high
+    const CASE_1_16: &str = "‾|_|‾";
+    const EXP_1_16: [Rec; 5] = [
+        Rec {changed: false, value:true},
+        Rec {changed: true, value:false},
+        Rec {changed: false, value:false},
+        Rec {changed: true, value:true},
+        Rec {changed: false, value:true},
+    ];
+    // Triple case from low
+    const CASE_1_17: &str = "_|||_";
+    const EXP_1_17: [Rec; 5] = [
+        Rec {changed: false, value:false},
+        Rec {changed: true, value:true},
+        Rec {changed: true, value:false},
+        Rec {changed: true, value:true},
+        Rec {changed: true, value:false},
+    ];
+    // Triple case from high
+    const CASE_1_18: &str = "‾|||‾";
+    const EXP_1_18: [Rec; 5] = [
+        Rec {changed: false, value:true},
+        Rec {changed: true, value:false},
+        Rec {changed: true, value:true},
+        Rec {changed: true, value:false},
+        Rec {changed: true, value:true},
+    ];
+
+    // # Cases without | and other high char
+    // Pulse between low
+    const CASE_2_1: &str = "_X_";
+    const EXP_2_1: [Rec; 3] = [
+        Rec {changed: false, value:false},
+        Rec {changed: true, value:true},
+        Rec {changed: true, value:false},
+    ];
+    // Pulse between high
+    const CASE_2_2: &str = "X_X";
+    const EXP_2_2: [Rec; 3] = [
+        Rec {changed: false, value:true},
+        Rec {changed: true, value:false},
+        Rec {changed: true, value:true},
+    ];
+    // Only | end after low
+    const CASE_2_3: &str = "_X";
+    const EXP_2_3: [Rec; 2] = [
+        Rec {changed: false, value:false},
+        Rec {changed: true, value:true},
+    ];
+    // Only | end after high
+    const CASE_2_4: &str = "X_";
+    const EXP_2_4: [Rec; 2] = [
+        Rec {changed: false, value:true},
+        Rec {changed: true, value:false},
+    ];
+
+    const ASCII_TO_EVT_CASES: [AsciiToEvtTc; 22] = [
+        AsciiToEvtTc { case: &CASE_1_1, exp: &EXP_1_1 },
+        AsciiToEvtTc { case: &CASE_1_2, exp: &EXP_1_2 },
+        AsciiToEvtTc { case: &CASE_1_3, exp: &EXP_1_3 },
+        AsciiToEvtTc { case: &CASE_1_4, exp: &EXP_1_4 },
+        AsciiToEvtTc { case: &CASE_1_5, exp: &EXP_1_5 },
+        AsciiToEvtTc { case: &CASE_1_6, exp: &EXP_1_6 },
+        AsciiToEvtTc { case: &CASE_1_7, exp: &EXP_1_7 },
+        AsciiToEvtTc { case: &CASE_1_8, exp: &EXP_1_8 },
+        AsciiToEvtTc { case: &CASE_1_9, exp: &EXP_1_9 },
+        AsciiToEvtTc { case: &CASE_1_10, exp: &EXP_1_10 },
+        AsciiToEvtTc { case: &CASE_1_11, exp: &EXP_1_11 },
+        AsciiToEvtTc { case: &CASE_1_12, exp: &EXP_1_12 },
+        AsciiToEvtTc { case: &CASE_1_13, exp: &EXP_1_13 },
+        AsciiToEvtTc { case: &CASE_1_14, exp: &EXP_1_14 },
+        AsciiToEvtTc { case: &CASE_1_15, exp: &EXP_1_15 },
+        AsciiToEvtTc { case: &CASE_1_16, exp: &EXP_1_16 },
+        AsciiToEvtTc { case: &CASE_1_17, exp: &EXP_1_17 },
+        AsciiToEvtTc { case: &CASE_1_18, exp: &EXP_1_18 },
+        AsciiToEvtTc { case: &CASE_2_1, exp: &EXP_2_1 },
+        AsciiToEvtTc { case: &CASE_2_2, exp: &EXP_2_2 },
+        AsciiToEvtTc { case: &CASE_2_3, exp: &EXP_2_3 },
+        AsciiToEvtTc { case: &CASE_2_4, exp: &EXP_2_4 },
+    ];
+
+    #[test]
+    fn test_parse() {
+        let cases = &ASCII_TO_EVT_CASES;
+        for tc in cases {
+            let samples: Vec<_,1> = Parser::<_,1>::new_bool_default(tc.case).
+                map(|item| 
+                    (item.index, Rec { changed: item.changed, value: item.values[0] })
+                ).collect();
+            assert_eq!(tc.exp.len(), samples.len(), "unexpected number of values for case '{}'", tc.case);
+            for (i, (index,sample)) in samples.iter().enumerate() {
+                assert_eq!(i, *index, "index mismatch at index {} for case '{}'", i, tc.case);
+                assert_eq!(tc.exp[i], *sample, "Sample mismatch at index {} for case '{}'", i, tc.case);
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    struct RecMulti<const N: usize> {
+        changed: bool,
+        values: [bool; N],
+    }
+    impl<const N: usize> Default for RecMulti<N> {
+        fn default() -> Self {
+            Self {
+                changed: false,
+                values: [false; N],
+            }
+        }
+    }
+
+    #[derive(Copy, Clone)]
+    struct AsciisToEvtTc<const N: usize> {
+        case: &'static str,
+        exp: &'static [RecMulti<N>],
+    }
+
+    // Special cases
+    const CASE_3_1: &str = "\n";
+    const EXP_3_1: [RecMulti<2>; 0] = [];
+
+    const CASE_3_2: &str = "_\n‾";
+    const EXP_3_2: [RecMulti<2>; 1] = [
+        RecMulti { changed: false, values: [false, true]},
+    ];
+
+    // Different lengths
+    const CASE_3_3: &str = "_\n‾‾";
+    const EXP_3_3: [RecMulti<2>; 2] = [
+        RecMulti { changed: false, values: [false, true]},
+        RecMulti { changed: false, values: [false, true]},
+    ];
+    const CASE_3_4: &str = "__\n‾";
+    const EXP_3_4: [RecMulti<2>; 2] = [
+        RecMulti { changed: false, values: [false, true]},
+        RecMulti { changed: false, values: [false, true]},
+    ];
+
+    // Normal cases
+    const CASE_3_5: &str = 
+        "___‾‾_
+         _‾____";
+    const EXP_3_5: [RecMulti<2>; 6] = [
+        RecMulti { changed: false, values: [false, false]},
+        RecMulti { changed: true, values: [false, true]},
+        RecMulti { changed: true, values: [false, false]},
+        RecMulti { changed: true, values: [true, false]},
+        RecMulti { changed: false, values: [true, false]},
+        RecMulti { changed: true, values: [false, false]},
+    ];
+    const CASE_3_6: &str =
+        "‾‾‾__‾
+         ‾_‾‾‾‾";
+    const EXP_3_6: [RecMulti<2>; 6] = [
+        RecMulti { changed: false, values: [true, true]},
+        RecMulti { changed: true, values: [true, false]},
+        RecMulti { changed: true, values: [true, true]},
+        RecMulti { changed: true, values: [false, true]},
+        RecMulti { changed: false, values: [false, true]},
+        RecMulti { changed: true, values: [true, true]},
+    ];
+
+    const ASCIIS_TO_EVT_CASES: [AsciisToEvtTc<2>; 6] = [
+        AsciisToEvtTc { case: &CASE_3_1, exp: &EXP_3_1 },
+        AsciisToEvtTc { case: &CASE_3_2, exp: &EXP_3_2 },
+        AsciisToEvtTc { case: &CASE_3_3, exp: &EXP_3_3 },
+        AsciisToEvtTc { case: &CASE_3_4, exp: &EXP_3_4 },
+        AsciisToEvtTc { case: &CASE_3_5, exp: &EXP_3_5 },
+        AsciisToEvtTc { case: &CASE_3_6, exp: &EXP_3_6 },
+    ];
+
+    #[test]
+    fn test_parse_multi() {
+        let cases = &ASCIIS_TO_EVT_CASES;
+        for tc in cases {
+            let samples: Vec<_,2> = Parser::<_,2>::new_bool_default(tc.case).
+                map(|item:Item<bool,_>| 
+                    (item.index, RecMulti { changed: item.changed, values: [item.values[0], item.values[1]] })
+                ).collect();
+            assert_eq!(tc.exp.len(), samples.len(), "unexpected number of values for case '{}'", tc.case);
+            for (i, (index,sample)) in samples.iter().enumerate() {
+                assert_eq!(i, *index, "index mismatch at index {} for case '{}'", i, tc.case);
+                assert_eq!(tc.exp[i], *sample, "Sample mismatch at index {} for case '{}'", i, tc.case);
+            }
+        }
+    }
+}
