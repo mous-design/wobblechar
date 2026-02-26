@@ -1,10 +1,10 @@
 use log::{error, warn};
 mod mapper;
+pub mod builder;
 use core::marker::PhantomData;
 use core::iter::Peekable;
 use core::str::Chars;
-use mapper::Mapper;
-use mapper::default::{BoolMapper, NumMapper};
+use mapper::{Mapper,BoolMapper, NumMapper, LookupMap};
 use heapless::Vec;
 pub struct Item<T,const N:usize > {
     pub values: Vec<T, N>,
@@ -21,23 +21,27 @@ impl <T, const N:usize> Item<T, N> {
         }
     }
 }
+#[allow(dead_code)]
 enum Label<'a> {
     Undef,
     NoLabel,
-    Label(&'a str)
+    Label(&'a str),
 }
 use Label::*;
+#[allow(dead_code)]
 struct Line<'a> {
     pub content: &'a str,
     pub label: Label<'a>,
 }
 impl<'a> Line<'a> {
+    #[allow(dead_code)]
     pub fn new(content: &'a str) -> Self {
         Self {
             content,
             label: Undef,
         }
     }
+    #[allow(dead_code)]
     pub fn get_label(&mut self) -> Option<&'a str> {
         match self.label {
             NoLabel => None,
@@ -53,42 +57,22 @@ None
 
 
 type LineIters<'a,const N:usize> = Vec<Peekable<Chars<'a>>, N>;
-pub struct Parser<'a, M, const N:usize>
+type MapOut<M> = <<M as Mapper>::Map as LookupMap>::Out;
+pub struct Parser<'a, const N:usize, M>
     where M:Mapper
 {
     line_iters: LineIters<'a, N>,
     index: usize,
-    last_values: Option<Vec<M::Output,N>>,
+    last_values: Option<Vec<MapOut<M>,N>>,
     mapper: M,
-    _phantom: PhantomData<M::Output>,
+    _phantom: PhantomData<MapOut<M>>,
 }
 
-impl<'a, const N: usize> Parser<'a, BoolMapper, N>
-where
-    <BoolMapper as Mapper>::Output: PartialEq,
-{
-    pub fn new_bool_default(waveform: &'a str) -> Self {
-        let mapper = BoolMapper::new();
-        Self::new(waveform, mapper)
-    }
-}
-
-impl<'a, T, const N: usize> Parser<'a, NumMapper<T>, N>
-    where T: num_traits::Num + Copy
-{
-    pub fn new_num_default(waveform: &'a str) -> Self {
-        let mapper = NumMapper::<T>::new();
-        Parser::new(waveform, mapper)
-    }
-}
-
-impl<'a, M, const N: usize> Parser<'a, M, N>
+impl<'a, M, const N: usize> Parser<'a, N, M>
     where M: Mapper,
 {
-
-    pub fn new(waveform: &'a str, mapper: M) -> Self {
-        let line_iters = Self::waveform_to_iters(waveform);
-        let last_values: Option<Vec<M::Output, N>> = None;
+    pub fn new(line_iters: LineIters<'a, N>, mapper: M) -> Self {
+        let last_values: Option<Vec<MapOut<M>, N>> = None;
         Self {
             line_iters,
             index: 0,
@@ -97,39 +81,15 @@ impl<'a, M, const N: usize> Parser<'a, M, N>
             _phantom: PhantomData,
         }
     }
-    
-    // have a vec of iterators per line, with the already trimmed lines.
-    // @todo: nieuw idee: alle regels volledig trim doen, split op newline (of 
-    //        variabele delim, maar dat lijkt me niet echt nodig). Lege regels negeren.
-    //        Dan labels ondersteunen. Als label vaker terugkomt, dan chainen
-    //        we de iterator.
-    //        Dan kan dit dus:
-    // 
-    // D0:  _|‾‾|___
-    // D1:  ___|‾‾|_
-    //
-    // D0:  |‾‾|___
-    // D1:  __|‾‾|_
-    // 
-    // Zonder labels is gewoon elke regel een signaal. Met labels symbol-tabel 
-    // bijhoduen. Syntax kan dan zijn: \w+: aan begin regel is label. Lijkt me
-    // onnodig om deze syntax instelbaar te maken...
-    fn waveform_to_iters(waveform: &str) -> LineIters<'_,N>
-    {
-        waveform
-            .lines().map(|line| line.trim_start().chars().peekable())
-            .collect()
-    }
-
 }
 
-impl<'a, M, const N:usize> Iterator for Parser<'a, M,  N>
+impl<'a, const N:usize, M> Iterator for Parser<'a, N, M>
     where M: Mapper
 {
-    type Item = Item<M::Output, N>;
+    type Item = Item<MapOut<M>, N>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut item = Item::<M::Output,N>::new();
+        let mut item = Item::<MapOut<M>,N>::new();
         let mut eols:Vec<usize,N> = Vec::new();
         for (line,iter) in self.line_iters.iter_mut().enumerate() {
             let last_value = if let Some(ref last_values) = self.last_values {
@@ -209,6 +169,8 @@ impl<'a, M, const N:usize> Iterator for Parser<'a, M,  N>
 
 #[cfg(test)]
 mod tests {
+    use crate::parser::builder::Builder;
+
     use super::*;
 
     #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -401,7 +363,8 @@ mod tests {
     fn test_parse() {
         let cases = &ASCII_TO_EVT_CASES;
         for tc in cases {
-            let samples: Vec<_,1> = Parser::<_,1>::new_bool_default(tc.case).
+            let samples: Vec<_,5> = 
+                Builder::<1>::new_from_string(tc.case).with_def_bool_mapper().build().
                 map(|item| 
                     (item.index, Rec { changed: item.changed, value: item.values[0] })
                 ).collect();
@@ -491,7 +454,8 @@ mod tests {
     fn test_parse_multi() {
         let cases = &ASCIIS_TO_EVT_CASES;
         for tc in cases {
-            let samples: Vec<_,2> = Parser::<_,2>::new_bool_default(tc.case).
+            let samples: Vec<_,6> = 
+                Builder::<2>::new_from_string(tc.case).with_def_bool_mapper().build().
                 map(|item:Item<bool,_>| 
                     (item.index, RecMulti { changed: item.changed, values: [item.values[0], item.values[1]] })
                 ).collect();
