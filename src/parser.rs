@@ -1,11 +1,14 @@
 use log::{error, warn};
 mod mapper;
+mod line_parser;
 pub mod builder;
 use core::marker::PhantomData;
-use core::iter::Peekable;
 use core::str::Chars;
+use core::iter::Iterator;
 use mapper::{Mapper,BoolMapper, NumMapper, LookupMap};
 use heapless::Vec;
+use line_parser::{string_to_iters, ParseError};
+
 pub struct Item<T,const N:usize > {
     pub values: Vec<T, N>,
     pub index: usize,
@@ -22,46 +25,56 @@ impl <T, const N:usize> Item<T, N> {
     }
 }
 #[allow(dead_code)]
-enum Label<'a> {
-    Undef,
-    NoLabel,
-    Label(&'a str),
-}
-use Label::*;
-#[allow(dead_code)]
-struct Line<'a> {
+#[derive(Clone)]
+pub struct Line<'a> {
+    pub label: &'a str,
     pub content: &'a str,
-    pub label: Label<'a>,
+    pub remain: &'a str,
+
+    content_iter: Option<Chars<'a>>,
+    peeked: Option<char>,
 }
 impl<'a> Line<'a> {
-    #[allow(dead_code)]
-    pub fn new(content: &'a str) -> Self {
-        Self {
-            content,
-            label: Undef,
-        }
+    pub fn new(label: &'a str, content: &'a str, remain: &'a str) -> Self {
+        Self { label, content, remain, content_iter: Some(content.chars()), peeked: None  }
     }
     #[allow(dead_code)]
-    pub fn get_label(&mut self) -> Option<&'a str> {
-        match self.label {
-            NoLabel => None,
-            Label(str) => Some(str),
-            Undef => {
-                // @todo find label here
-None
-            }
-        } 
+    pub fn has_label(&self) -> bool {
+        self.label.len() > 0
+    }
+    #[allow(dead_code)]
+    pub fn get_label(&self) -> &'a str {
+       self.label
+    }
+    pub fn peek(&mut self) -> Option<char> {
+        if self.peeked.is_none() {
+            self.peeked = self.next();
+        }
+        self.peeked
+    }
+}
+impl<'a> Iterator for Line<'a> {
+    type Item = char;
+    fn next(&mut self) -> Option<char> {
+        if let Some(c) = self.peeked.take() {
+            return Some(c);
+        }
+        if let Some(ref mut iter) = self.content_iter {
+            return iter.next();
+        }
+        if self.remain.len() > 0 {
+            
+
+        }
+        None
     }
 }
 
-
-
-type LineIters<'a,const N:usize> = Vec<Peekable<Chars<'a>>, N>;
 type MapOut<M> = <<M as Mapper>::Map as LookupMap>::Out;
 pub struct Parser<'a, const N:usize, M>
     where M:Mapper
 {
-    line_iters: LineIters<'a, N>,
+    line_iters: Vec<Line<'a>,N>,
     index: usize,
     last_values: Option<Vec<MapOut<M>,N>>,
     mapper: M,
@@ -71,15 +84,16 @@ pub struct Parser<'a, const N:usize, M>
 impl<'a, M, const N: usize> Parser<'a, N, M>
     where M: Mapper,
 {
-    pub fn new(line_iters: LineIters<'a, N>, mapper: M) -> Self {
+    pub fn new(string: &'a str, mapper: M) -> Result<Self, ParseError> {
+        let line_iters = string_to_iters(string)?;
         let last_values: Option<Vec<MapOut<M>, N>> = None;
-        Self {
+        Ok(Self {
             line_iters,
             index: 0,
             last_values,
             mapper,
             _phantom: PhantomData,
-        }
+        })
     }
 }
 
@@ -91,9 +105,9 @@ impl<'a, const N:usize, M> Iterator for Parser<'a, N, M>
     fn next(&mut self) -> Option<Self::Item> {
         let mut item = Item::<MapOut<M>,N>::new();
         let mut eols:Vec<usize,N> = Vec::new();
-        for (line,iter) in self.line_iters.iter_mut().enumerate() {
+        for (line_idx,iter) in self.line_iters.iter_mut().enumerate() {
             let last_value = if let Some(ref last_values) = self.last_values {
-                Some(last_values[line])
+                Some(last_values[line_idx])
             } else {
                 None
             };
@@ -107,7 +121,7 @@ impl<'a, const N:usize, M> Iterator for Parser<'a, N, M>
                         self.mapper.toggle(last_value)
                     } else {
                         // If no last value, Look at next character
-                        if let Some(&n) = iter.peek() {
+                        if let Some(n) = iter.peek() {
                             if self.mapper.is_toggle(n) {
                                 // This is an unexpected case: There is no 
                                 //last-value AND no ext value. Assume low at start.
@@ -137,7 +151,7 @@ impl<'a, const N:usize, M> Iterator for Parser<'a, N, M>
                 }
             } else {
                 // End of line here.
-                let _ = eols.push(line);
+                let _ = eols.push(line_idx);
                 // Keep the last value, or the default if none.
                 last_value.unwrap_or_else(|| self.mapper.default())
             };
@@ -164,8 +178,6 @@ impl<'a, const N:usize, M> Iterator for Parser<'a, N, M>
         }
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -446,8 +458,8 @@ mod tests {
         AsciisToEvtTc { case: &CASE_3_2, exp: &EXP_3_2 },
         AsciisToEvtTc { case: &CASE_3_3, exp: &EXP_3_3 },
         AsciisToEvtTc { case: &CASE_3_4, exp: &EXP_3_4 },
-        AsciisToEvtTc { case: &CASE_3_5, exp: &EXP_3_5 },
-        AsciisToEvtTc { case: &CASE_3_6, exp: &EXP_3_6 },
+       AsciisToEvtTc { case: &CASE_3_5, exp: &EXP_3_5 },
+       AsciisToEvtTc { case: &CASE_3_6, exp: &EXP_3_6 },
     ];
 
     #[test]
