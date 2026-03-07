@@ -9,7 +9,7 @@ pub struct Builder<'a, const N:usize, M = NoMapper>
     string: &'a str,
     mapper: M,
 }
-impl<'a, const N: usize, M> Builder<'a, N, M> {
+impl<const N: usize, M> Builder<'_, N, M> {
     pub fn with_mapper(self, mapper: M) -> Self {
         Builder {
             string: self.string,
@@ -42,8 +42,8 @@ impl<'a, const N: usize> Builder<'a, N> {
         }
     }
     #[cfg(feature = "std")]
-    pub fn with_hash_bool_mapper(self, map:&'a std::collections::HashMap<char, Entry<bool>>)
-        -> Builder<'a, N, BoolMapper<hash::LookupBool<'a>>>
+    pub fn with_hash_bool_mapper<'b>(self, map:&'b std::collections::HashMap<char, Entry<bool>>)
+        -> Builder<'a, N, BoolMapper<hash::LookupBool<'b>>>
     {
         let lookup = hash::LookupBool::new(map);
         let mapper = BoolMapper::new(lookup);
@@ -53,8 +53,8 @@ impl<'a, const N: usize> Builder<'a, N> {
         }
     }
     #[cfg(feature = "std")]
-    pub fn with_hash_num_mapper<T>(self, map:&'a std::collections::HashMap<char, Entry<T>>) 
-        -> Builder<'a, N, NumMapper<hash::LookupNum<'a, T>>>
+    pub fn with_hash_num_mapper<'b, T>(self, map:&'b std::collections::HashMap<char, Entry<T>>) 
+        -> Builder<'a, N, NumMapper<hash::LookupNum<'b, T>>>
         where T: Num + Copy + Ord,
     {
         let lookup = hash::LookupNum::<T>::new(map);
@@ -64,8 +64,8 @@ impl<'a, const N: usize> Builder<'a, N> {
             mapper,
         }
     }
-    pub fn with_const_bool_map(self, map:&'a [(char, Entry<bool>)]) 
-        -> Builder<'a, N, BoolMapper<constant::LookupBool<'a>>>
+    pub fn with_const_bool_map<'b>(self, map:&'b [(char, Entry<bool>)]) 
+        -> Builder<'a, N, BoolMapper<constant::LookupBool<'b>>>
     {
         let lookup = constant::LookupBool::new(map);
         let mapper = BoolMapper::new(lookup);
@@ -74,8 +74,8 @@ impl<'a, const N: usize> Builder<'a, N> {
             mapper,
         }
     }
-    pub fn with_const_num_mapper<T>(self, map:&'a [(char, Entry<T>)]) 
-        -> Builder<'a, N, NumMapper<constant::LookupNum<'a,T>>> 
+    pub fn with_const_num_mapper<'b, T>(self, map:&'b [(char, Entry<T>)]) 
+        -> Builder<'a, N, NumMapper<constant::LookupNum<'b,T>>> 
         where T: Num + Copy + Ord,
     {
         let lookup = constant::LookupNum::<T>::new(map);

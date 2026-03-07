@@ -167,7 +167,7 @@ pub mod hash {
             Self { map }
         }
     }
-    impl <'a>LookupMap for LookupBool<'_> {
+    impl LookupMap for LookupBool<'_> {
         type Out = bool;
 
         fn get(&self, c: char) -> Option<Entry<bool>> {

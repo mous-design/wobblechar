@@ -1,5 +1,74 @@
-use super::Line;
 use heapless::Vec;
+use core::str::Chars;
+
+pub struct Line<'a> {
+    pub label: &'a str,
+    pub content: &'a str,
+    pub remain: &'a str,
+}
+
+impl<'a> Line<'a> {
+    pub fn new(label: &'a str, content: &'a str, remain: &'a str) -> Self {
+        Self { label, content, remain }
+    }
+    pub fn into_iter(self) -> LineIterator<'a> {
+        let content_iter = self.content.chars();
+        let remain_iter = if self.remain.len() > 0 {
+            Some(LineParser::new(self.remain))
+        } else {
+            None
+        };
+        LineIterator {
+            label: self.label,
+            content_iter,
+            peeked: None,
+            remain_iter,
+        }
+    }
+}
+pub struct LineIterator<'a> {
+    label: &'a str,
+    content_iter: Chars<'a>,
+    remain_iter: Option<LineParser<'a>>,
+    peeked: Option<char>,
+}
+impl LineIterator<'_> {
+    pub fn peek(&mut self) -> Option<char> {
+        if self.peeked.is_none() {
+            self.peeked = self.next();
+        }
+        self.peeked
+    }
+}
+impl Iterator for LineIterator<'_> {
+    type Item = char;
+    fn next(&mut self) -> Option<char> {
+        if let Some(c) = self.peeked.take() {
+            return Some(c);
+        }
+        let n = self.content_iter.next();
+        if n.is_some() {
+            return n;
+        }
+        if let Some(iter) = &mut self.remain_iter {
+            // walt through the lines and look for the same label. If found, 
+            // that becomes the new content_iter. Remain is updated to the string 
+            //after that line.
+            while let Some(line) = iter.next() {
+                if line.label == self.label {
+                    self.content_iter = line.content.chars();
+                    self.remain_iter = if line.remain.len() > 0 {
+                        Some(LineParser::new(line.remain))
+                    } else {
+                        None
+                    };
+                    return self.next();
+                }
+            }
+        }
+        None
+    }
+}
 
 enum LineParseState {
     AtStart, // From the start of a new line up to the first non-whitespace character.
@@ -13,102 +82,117 @@ use LineParseState::*;
 pub enum ParseError {
     CapacityFull,
 }
+pub struct LineParser<'a> {
+    remain: &'a str,
+}
+impl<'a> LineParser<'a> {
+    pub fn new(string: &'a str) -> Self {
+        Self {
+            remain: string,
+        }
+    }
+    pub fn get_lines<const N: usize>(self) -> Result<Vec<Line<'a>, N>, ParseError> {
+        let mut lines = Vec::<Line, N>::new();
 
-// have a vec of iterators per line, with the already trimmed lines.
-pub fn string_to_iters<'a, const N:usize>(string: &'a str) -> Result<Vec<Line<'a>, N>, ParseError>
-{
-    let mut state = AtStart;
-    let mut start = 0;
-    let mut end = 0;
-    let mut eol = 0;
-    let mut label = "";
-    let mut iters = Vec::<Line, N>::new();
-    let mut chars = string.char_indices().peekable();
-    while let Some((idx,c)) = chars.next() {
-        let w = c.len_utf8();
-        eol = idx + w;
-        // Handle Windows-style newlines (\r\n) by igonring the '\r' IF it is followed by a '\n'.
-        // If not, just treat the \r as a newline, which is what some old Mac-style text files use.              
-        if c == '\r' && chars.peek().map(|(_, next_c)| *next_c == '\n')
-            .unwrap_or(false) {
-            continue;
-        }
-        // Handle all special characters, sometimes for a specific state.
-        match c {
-            '\n' | '\r' => {
-                handle_end(&mut iters, string, start, end, label, eol)?;
-                start = eol;
-                end = start;
-                label = "";
-                state = AtStart;
+        for line in self {
+            if line.content.is_empty() {
                 continue;
-            },
-            '#' => {
-                // If we see a comment char, we ignore the rest of the line.
-                state = Comment;
-                continue;
-            },
-            ' ' | '\t' => {
-                // Skip whitespace for AtStart and AfterLabel.
-                if matches!(state, AtStart | AfterLabel) {
-                    start = eol;
-                    end = start;
-                    continue;
-                }
-            },
-            ':' => {
-                if matches!(state, AtStart | LabelOrContent) {
-                    label = &string[start..idx];
-                    start = eol;
-                    end = start;
-                    state = AfterLabel;
-                    continue;
-                }
-            },
-            _ => {}
-        }
-        // On any other character, we might need to update the state and end index.
-        match state {
-            AtStart => {
-                state = LabelOrContent;
-                end = eol;
-            },
-            AfterLabel => {
-                state = Content;
-                end = eol;
             }
-            LabelOrContent | Content => {
-                end = eol;
-            },
-            _ => {}
+            if line.label.is_empty() {
+                // No label, simple case
+                lines.push(Line::new("", line.content, ""))
+                    .map_err(|_| ParseError::CapacityFull)?;
+            } else {
+                // We have a label. Add it only if it is not already known.
+                if let None = lines.iter().find(|l| l.label == line.label) {
+                    // We have a new label, so we can add it. For remain, we need the string after this line.
+                    lines.push(line)                        
+                        .map_err(|_| ParseError::CapacityFull)?;
+                }
+            }
         }
+        Ok(lines)
     }
-    // If the string ended without a newline, we might still have content to process.
-    if matches!(state, LabelOrContent | Content | Comment) {
-        handle_end(&mut iters, string, start, end, label, eol)?;
-    }
-    Ok(iters)
 }
 
-pub fn handle_end<'a, const N:usize>(iters: &mut Vec<Line<'a>, N>, string: &'a str,
-    start: usize, end: usize, label: &'a str, eol: usize) -> Result<(), ParseError>{
-    if start < end {
-        // Only process if we actually have a string
-        if !label.is_empty() {
-            // We have a label. Add it only if it is not already known.
-            if let None = iters.iter().find(|line| line.label == label) {
-                // We have a new label, so we can add it. For remain, we need the string after this line.
-                let remain = &string[eol..].trim_start_matches(|c| c == '\n' || c == '\r');
-                iters.push(Line::new(label, &string[start..end], remain))                        
-                    .map_err(|_| ParseError::CapacityFull)?;
+impl<'a> Iterator for LineParser<'a> {
+    type Item = Line<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut state = AtStart;
+        let mut start = 0;
+        let mut end = 0;
+        let mut label = "";
+        let mut chars = self.remain.char_indices().peekable();
+        while let Some((idx,c)) = chars.next() {
+            // Handle Windows-style newlines (\r\n) by igonring the '\r' IF it is followed by a '\n'.
+            // If not, just treat the \r as a newline, which is what some old Mac-style text files use.              
+            if c == '\r' && chars.peek().map(|(_, next_c)| *next_c == '\n')
+                .unwrap_or(false) {
+                continue;
             }
+            // Handle all special characters, sometimes for a specific state.
+            match c {
+                '\n' | '\r' => {
+                    let content = &self.remain[start..end]
+                        .trim_end_matches(|c| c == ' ' || c == '\t');
+                    self.remain = self.remain[idx+1..]
+                        .trim_start_matches(|c| c == '\n' || c == '\r');
+                    return Some(Line::new(label, content,  if label.is_empty() {
+                        ""
+                    } else {
+                        &self.remain
+                    }));
+                },
+                '#' => {
+                    // If we see a comment char, we ignore the rest of the line.
+                    state = Comment;
+                    continue;
+                },
+                ' ' | '\t' => {
+                    // Skip whitespace for AtStart and AfterLabel.
+                    if matches!(state, AtStart | AfterLabel) {
+                        start = idx + 1;
+                        end = start;
+                        continue;
+                    }
+                },
+                ':' => {
+                    if matches!(state, AtStart | LabelOrContent) {
+                        label = &self.remain[start..idx];
+                        start = idx + 1;
+                        end = start;
+                        state = AfterLabel;
+                        continue;
+                    }
+                },
+                _ => {}
+            }
+            // On any other character, we might need to update the state and end index.
+            match state {
+                AtStart => {
+                    state = LabelOrContent;
+                    end = idx + c.len_utf8();
+                },
+                AfterLabel => {
+                    state = Content;
+                    end = idx + c.len_utf8();
+                }
+                LabelOrContent | Content => {
+                    end = idx + c.len_utf8();
+                },
+                _ => {}
+            }
+        }
+        if end > start && matches!(state, LabelOrContent | Content | Comment) {
+            let content = &self.remain[start..end]
+                .trim_end_matches(|c| c == ' ' || c == '\t');
+            self.remain = "";
+            Some(Line::new(label, content, ""))
         } else {
-            // No label, simple case
-            iters.push(Line::new("", &string[start..end], ""))
-                .map_err(|_| ParseError::CapacityFull)?;
+            None
         }
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -305,7 +389,7 @@ Lab2:__",
     fn test_string_to_iters() {
         let cases = &LINE_PARSER_TCS;
         for tc in cases {
-            let iters: Vec<Line, 3> = string_to_iters(tc.case).unwrap();
+            let iters: Vec<Line, 3> = LineParser::new(tc.case).get_lines().unwrap();
 
             assert_eq!(tc.exp_len, iters.len(), "unexpected number of values for case '{}'", tc.description);
             for (line, iter) in iters.iter().enumerate() {
@@ -320,7 +404,7 @@ Lab2:__",
     fn test_capacity_exceeded() {
           // Vec has max 3 entries, 4 lines requested.
         let input = "L1:c1\nL2:c2\nL3:c3\nL4:c4";
-        let result: Result<Vec<Line, 3>, ParseError> = string_to_iters(input);
+        let result: Result<Vec<Line, 3>, ParseError> = LineParser::new(input).get_lines();
         
         assert!(matches!(result, Err(ParseError::CapacityFull)));
     }

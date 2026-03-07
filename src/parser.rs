@@ -3,11 +3,10 @@ mod mapper;
 mod line_parser;
 pub mod builder;
 use core::marker::PhantomData;
-use core::str::Chars;
 use core::iter::Iterator;
 use mapper::{Mapper,BoolMapper, NumMapper, LookupMap};
 use heapless::Vec;
-use line_parser::{string_to_iters, ParseError};
+use line_parser::{LineParser, LineIterator, ParseError};
 
 pub struct Item<T,const N:usize > {
     pub values: Vec<T, N>,
@@ -24,57 +23,12 @@ impl <T, const N:usize> Item<T, N> {
         }
     }
 }
-#[allow(dead_code)]
-#[derive(Clone)]
-pub struct Line<'a> {
-    pub label: &'a str,
-    pub content: &'a str,
-    pub remain: &'a str,
-
-    content_iter: Option<Chars<'a>>,
-    peeked: Option<char>,
-}
-impl<'a> Line<'a> {
-    pub fn new(label: &'a str, content: &'a str, remain: &'a str) -> Self {
-        Self { label, content, remain, content_iter: Some(content.chars()), peeked: None  }
-    }
-    #[allow(dead_code)]
-    pub fn has_label(&self) -> bool {
-        self.label.len() > 0
-    }
-    #[allow(dead_code)]
-    pub fn get_label(&self) -> &'a str {
-       self.label
-    }
-    pub fn peek(&mut self) -> Option<char> {
-        if self.peeked.is_none() {
-            self.peeked = self.next();
-        }
-        self.peeked
-    }
-}
-impl<'a> Iterator for Line<'a> {
-    type Item = char;
-    fn next(&mut self) -> Option<char> {
-        if let Some(c) = self.peeked.take() {
-            return Some(c);
-        }
-        if let Some(ref mut iter) = self.content_iter {
-            return iter.next();
-        }
-        if self.remain.len() > 0 {
-            
-
-        }
-        None
-    }
-}
 
 type MapOut<M> = <<M as Mapper>::Map as LookupMap>::Out;
 pub struct Parser<'a, const N:usize, M>
     where M:Mapper
 {
-    line_iters: Vec<Line<'a>,N>,
+    line_iters: Vec<LineIterator<'a>,N>,
     index: usize,
     last_values: Option<Vec<MapOut<M>,N>>,
     mapper: M,
@@ -85,7 +39,11 @@ impl<'a, M, const N: usize> Parser<'a, N, M>
     where M: Mapper,
 {
     pub fn new(string: &'a str, mapper: M) -> Result<Self, ParseError> {
-        let line_iters = string_to_iters(string)?;
+        let lines = LineParser::new(string).get_lines::<N>()?;
+        let line_iters: Vec<LineIterator<'a>, N> = lines
+            .into_iter()
+            .map(|line| line.into_iter())
+            .collect();
         let last_values: Option<Vec<MapOut<M>, N>> = None;
         Ok(Self {
             line_iters,
@@ -97,7 +55,7 @@ impl<'a, M, const N: usize> Parser<'a, N, M>
     }
 }
 
-impl<'a, const N:usize, M> Iterator for Parser<'a, N, M>
+impl<const N:usize, M> Iterator for Parser<'_, N, M>
     where M: Mapper
 {
     type Item = Item<MapOut<M>, N>;
@@ -458,8 +416,8 @@ mod tests {
         AsciisToEvtTc { case: &CASE_3_2, exp: &EXP_3_2 },
         AsciisToEvtTc { case: &CASE_3_3, exp: &EXP_3_3 },
         AsciisToEvtTc { case: &CASE_3_4, exp: &EXP_3_4 },
-       AsciisToEvtTc { case: &CASE_3_5, exp: &EXP_3_5 },
-       AsciisToEvtTc { case: &CASE_3_6, exp: &EXP_3_6 },
+        AsciisToEvtTc { case: &CASE_3_5, exp: &EXP_3_5 },
+        AsciisToEvtTc { case: &CASE_3_6, exp: &EXP_3_6 },
     ];
 
     #[test]
@@ -478,4 +436,43 @@ mod tests {
             }
         }
     }
+
+        // Now test labels
+    const CASE_4_1: &str = "
+    L1:_‾ # First line with label 1
+    L2:‾‾ # First line with label 2
+    _‾_‾  # No label
+    L1:‾_ # Label 1 continued
+    L2:_‾ # Label 2 continued
+    ";
+
+    const EXP_4_1: [RecMulti<3>; 4] = [
+        RecMulti { changed: false, values: [false, true, false]},
+        RecMulti { changed: true, values: [true, true, true]},
+        RecMulti { changed: true, values: [true, false, false]},
+        RecMulti { changed: true, values: [false, true, true]},
+    ];
+
+
+    const ASCIIS_TO_EVT_CASES_LABS: [AsciisToEvtTc<3>; 1] = [
+        AsciisToEvtTc { case: &CASE_4_1, exp: &EXP_4_1 },
+    ];
+
+   #[test]
+    fn test_parse_multi_with_labels() {
+        let cases = &ASCIIS_TO_EVT_CASES_LABS;
+        for tc in cases {
+            let samples: Vec<_,6> = 
+                Builder::<3>::new_from_string(tc.case).with_def_bool_mapper().build().
+                map(|item:Item<bool,_>| 
+                    (item.index, RecMulti { changed: item.changed, values: [item.values[0], item.values[1], item.values[2]] })
+                ).collect();
+            assert_eq!(tc.exp.len(), samples.len(), "unexpected number of values for case '{}'", tc.case);
+            for (i, (index,sample)) in samples.iter().enumerate() {
+                assert_eq!(i, *index, "index mismatch at index {} for case '{}'", i, tc.case);
+                assert_eq!(tc.exp[i], *sample, "Sample mismatch at index {} for case '{}'", i, tc.case);
+            }
+        }
+    }
+    // @todo: test different mappers!
 }
