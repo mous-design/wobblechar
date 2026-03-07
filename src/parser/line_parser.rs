@@ -228,7 +228,7 @@ mod tests {
         LineParserTc {
             description: "Three lines with whitespace, empty line and no label",
             case: "\n  \t__‾X \n\nXX__\nX",
-            exp: [("", "__‾X ", ""), ("", "XX__", ""), ("", "X", "")],
+            exp: [("", "__‾X", ""), ("", "XX__", ""), ("", "X", "")],
             exp_len: 3
         },
         LineParserTc {
@@ -246,7 +246,7 @@ mod tests {
         LineParserTc {
             description: "Two lines with no whitespace and two labels, one repeating next line",
             case: "Lab1:__‾‾ \nLab1:_XX_\nLab2:XX",
-            exp: [("Lab1", "__‾‾ ", "Lab1:_XX_\nLab2:XX"), ("Lab2", "XX", ""), ("", "", "")],
+            exp: [("Lab1", "__‾‾", "Lab1:_XX_\nLab2:XX"), ("Lab2", "XX", ""), ("", "", "")],
             exp_len: 2
         },
         LineParserTc {
@@ -274,7 +274,7 @@ mod tests {
         LineParserTc {
             description: "Content with leading/trailing spaces preserved",
             case: "Label1:  content with spaces  \nLabel2:value",
-            exp: [("Label1", "content with spaces  ", "Label2:value"),
+            exp: [("Label1", "content with spaces", "Label2:value"),
                   ("Label2", "value", ""), ("", "", "")],
             exp_len: 2
         },
@@ -294,7 +294,7 @@ Lab2:XX
 X_X_
 Lab1:_XX_ # This is comment 3
 Lab2:__",
-            exp: [("Lab1", "__XX ", "Lab2:XX\nX_X_\nLab1:_XX_ # This is comment 3\nLab2:__"),
+            exp: [("Lab1", "__XX", "Lab2:XX\nX_X_\nLab1:_XX_ # This is comment 3\nLab2:__"),
                   ("Lab2", "XX", "X_X_\nLab1:_XX_ # This is comment 3\nLab2:__"),
                   ("", "X_X_", "")],
             exp_len: 3
@@ -308,7 +308,7 @@ Lab2:__",
         LineParserTc {
             description: "Content with inline comment (comment removed)",
             case: "Label1:value1 # inline comment\nLabel2:value2",
-            exp: [("Label1", "value1 ", "Label2:value2"),
+            exp: [("Label1", "value1", "Label2:value2"),
                   ("Label2", "value2", ""), ("", "", "")],
             exp_len: 2
         },

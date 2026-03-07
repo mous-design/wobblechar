@@ -18,18 +18,15 @@
 //!
 //! ## Example
 //! ```
-//! use wobblechar::parser::lines_to_callback;
-//! let lines = ["_| ", "|  "];
-//! let expect = [(0, [false, true], true), (1, [true, true], true), (2, [true, true], false)];
-//! let mut i = 0;
-//! lines_to_callback(lines, 0, 1, |timestamp, values, changed| {
-//!     assert_eq!(expect[i], (timestamp, values, changed), "Mismatch at index {}", i);
-//!     i += 1;
-//! });
+//! use wobblechar::Builder;
+//! let expect = [(0, [false, true], false), (1, [true, false], true)];
+//! for item in Builder::<2>::new_from_string("_‾\n‾_").with_def_bool_mapper().build() {
+//!     let (exp_idx, exp_vals, exp_changed) = expect[item.index];
+//!     assert_eq!(item.index, exp_idx);
+//!     assert_eq!([item.values[0], item.values[1]], exp_vals);
+//!     assert_eq!(item.changed, exp_changed);
+//! }
 //! ```
-//!
-//! # Specialized Version
-//! For single-line cases, use `line_to_callback<F>()` instead.
 
 // parse_waveform(text: &str) -> Vec<bool>
 // generate_waveform(data: &[bool]) -> String

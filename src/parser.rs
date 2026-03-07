@@ -474,5 +474,275 @@ mod tests {
             }
         }
     }
-    // @todo: test different mappers!
+    // Tests for different mappers
+    use super::mapper::Entry;
+
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    struct RecNum<T> {
+        changed: bool,
+        value: T,
+    }
+
+    // --- Default Num Mapper ---
+    const CASE_NUM_1: &str = "_";
+    const EXP_NUM_1: [RecNum<u8>; 1] = [RecNum { changed: false, value: 0 }];
+
+    const CASE_NUM_2: &str = "‾";
+    const EXP_NUM_2: [RecNum<u8>; 1] = [RecNum { changed: false, value: 1 }];
+
+    const CASE_NUM_3: &str = "_|‾";
+    const EXP_NUM_3: [RecNum<u8>; 3] = [
+        RecNum { changed: false, value: 0 },
+        RecNum { changed: true,  value: 1 },
+        RecNum { changed: false, value: 1 },
+    ];
+
+    const CASE_NUM_4: &str = "‾|_";
+    const EXP_NUM_4: [RecNum<u8>; 3] = [
+        RecNum { changed: false, value: 1 },
+        RecNum { changed: true,  value: 0 },
+        RecNum { changed: false, value: 0 },
+    ];
+
+    const CASE_NUM_5: &str = "_|‾|_";
+    const EXP_NUM_5: [RecNum<u8>; 5] = [
+        RecNum { changed: false, value: 0 },
+        RecNum { changed: true,  value: 1 },
+        RecNum { changed: false, value: 1 },
+        RecNum { changed: true,  value: 0 },
+        RecNum { changed: false, value: 0 },
+    ];
+
+    struct DefNumTc {
+        case: &'static str,
+        exp: &'static [RecNum<u8>],
+    }
+
+    const DEF_NUM_CASES: [DefNumTc; 5] = [
+        DefNumTc { case: CASE_NUM_1, exp: &EXP_NUM_1 },
+        DefNumTc { case: CASE_NUM_2, exp: &EXP_NUM_2 },
+        DefNumTc { case: CASE_NUM_3, exp: &EXP_NUM_3 },
+        DefNumTc { case: CASE_NUM_4, exp: &EXP_NUM_4 },
+        DefNumTc { case: CASE_NUM_5, exp: &EXP_NUM_5 },
+    ];
+
+    #[test]
+    fn test_parse_def_num_mapper() {
+        for tc in &DEF_NUM_CASES {
+            let samples: Vec<_, 5> =
+                Builder::<1>::new_from_string(tc.case).with_def_num_mapper::<u8>().build()
+                    .map(|item| (item.index, RecNum { changed: item.changed, value: item.values[0] }))
+                    .collect();
+            assert_eq!(tc.exp.len(), samples.len(), "unexpected number of values for case '{}'", tc.case);
+            for (i, (index, sample)) in samples.iter().enumerate() {
+                assert_eq!(i, *index, "index mismatch at index {} for case '{}'", i, tc.case);
+                assert_eq!(tc.exp[i], *sample, "Sample mismatch at index {} for case '{}'", i, tc.case);
+            }
+        }
+    }
+
+    // --- Const Bool Mapper ---
+    // Custom chars: 'H' = high (true), 'L' = low (false), '|' = toggle
+    const CONST_BOOL_MAP: [(char, Entry<bool>); 3] = [
+        ('H', Entry::Value(true)),
+        ('L', Entry::Value(false)),
+        ('|', Entry::Toggle),
+    ];
+
+    const CASE_CBOOL_1: &str = "L";
+    const EXP_CBOOL_1: [Rec; 1] = [Rec { changed: false, value: false }];
+
+    const CASE_CBOOL_2: &str = "H";
+    const EXP_CBOOL_2: [Rec; 1] = [Rec { changed: false, value: true }];
+
+    const CASE_CBOOL_3: &str = "LH";
+    const EXP_CBOOL_3: [Rec; 2] = [
+        Rec { changed: false, value: false },
+        Rec { changed: true,  value: true },
+    ];
+
+    const CASE_CBOOL_4: &str = "L|H";
+    const EXP_CBOOL_4: [Rec; 3] = [
+        Rec { changed: false, value: false },
+        Rec { changed: true,  value: true },
+        Rec { changed: false, value: true },
+    ];
+
+    const CASE_CBOOL_5: &str = "H|L";
+    const EXP_CBOOL_5: [Rec; 3] = [
+        Rec { changed: false, value: true },
+        Rec { changed: true,  value: false },
+        Rec { changed: false, value: false },
+    ];
+
+    const CASE_CBOOL_6: &str = "L|H|L";
+    const EXP_CBOOL_6: [Rec; 5] = [
+        Rec { changed: false, value: false },
+        Rec { changed: true,  value: true },
+        Rec { changed: false, value: true },
+        Rec { changed: true,  value: false },
+        Rec { changed: false, value: false },
+    ];
+
+    struct ConstBoolTc {
+        case: &'static str,
+        exp: &'static [Rec],
+    }
+
+    const CONST_BOOL_CASES: [ConstBoolTc; 6] = [
+        ConstBoolTc { case: CASE_CBOOL_1, exp: &EXP_CBOOL_1 },
+        ConstBoolTc { case: CASE_CBOOL_2, exp: &EXP_CBOOL_2 },
+        ConstBoolTc { case: CASE_CBOOL_3, exp: &EXP_CBOOL_3 },
+        ConstBoolTc { case: CASE_CBOOL_4, exp: &EXP_CBOOL_4 },
+        ConstBoolTc { case: CASE_CBOOL_5, exp: &EXP_CBOOL_5 },
+        ConstBoolTc { case: CASE_CBOOL_6, exp: &EXP_CBOOL_6 },
+    ];
+
+    #[test]
+    fn test_parse_const_bool_mapper() {
+        for tc in &CONST_BOOL_CASES {
+            let samples: Vec<_, 5> =
+                Builder::<1>::new_from_string(tc.case).with_const_bool_map(&CONST_BOOL_MAP).build()
+                    .map(|item| (item.index, Rec { changed: item.changed, value: item.values[0] }))
+                    .collect();
+            assert_eq!(tc.exp.len(), samples.len(), "unexpected number of values for case '{}'", tc.case);
+            for (i, (index, sample)) in samples.iter().enumerate() {
+                assert_eq!(i, *index, "index mismatch at index {} for case '{}'", i, tc.case);
+                assert_eq!(tc.exp[i], *sample, "Sample mismatch at index {} for case '{}'", i, tc.case);
+            }
+        }
+    }
+
+    // --- Const Num Mapper ---
+    // Custom chars: 'X' = 5 (high), '_' = 0 (low), '|' = toggle
+    // NumMapper toggle: toggle(v) = min + max - v = 0 + 5 - v
+    const CONST_NUM_MAP_I8: [(char, Entry<i8>); 3] = [
+        ('X', Entry::Value(5)),
+        ('_', Entry::Value(0)),
+        ('|', Entry::Toggle),
+    ];
+
+    const CASE_CNUM_1: &str = "_";
+    const EXP_CNUM_1: [RecNum<i8>; 1] = [RecNum { changed: false, value: 0 }];
+
+    const CASE_CNUM_2: &str = "X";
+    const EXP_CNUM_2: [RecNum<i8>; 1] = [RecNum { changed: false, value: 5 }];
+
+    const CASE_CNUM_3: &str = "_X_";
+    const EXP_CNUM_3: [RecNum<i8>; 3] = [
+        RecNum { changed: false, value: 0 },
+        RecNum { changed: true,  value: 5 },
+        RecNum { changed: true,  value: 0 },
+    ];
+
+    const CASE_CNUM_4: &str = "_|X";
+    const EXP_CNUM_4: [RecNum<i8>; 3] = [
+        RecNum { changed: false, value: 0 },
+        RecNum { changed: true,  value: 5 },
+        RecNum { changed: false, value: 5 },
+    ];
+
+    const CASE_CNUM_5: &str = "X|_";
+    const EXP_CNUM_5: [RecNum<i8>; 3] = [
+        RecNum { changed: false, value: 5 },
+        RecNum { changed: true,  value: 0 },
+        RecNum { changed: false, value: 0 },
+    ];
+
+    const CASE_CNUM_6: &str = "_|X|_";
+    const EXP_CNUM_6: [RecNum<i8>; 5] = [
+        RecNum { changed: false, value: 0 },
+        RecNum { changed: true,  value: 5 },
+        RecNum { changed: false, value: 5 },
+        RecNum { changed: true,  value: 0 },
+        RecNum { changed: false, value: 0 },
+    ];
+
+    struct ConstNumTc {
+        case: &'static str,
+        exp: &'static [RecNum<i8>],
+    }
+
+    const CONST_NUM_CASES: [ConstNumTc; 6] = [
+        ConstNumTc { case: CASE_CNUM_1, exp: &EXP_CNUM_1 },
+        ConstNumTc { case: CASE_CNUM_2, exp: &EXP_CNUM_2 },
+        ConstNumTc { case: CASE_CNUM_3, exp: &EXP_CNUM_3 },
+        ConstNumTc { case: CASE_CNUM_4, exp: &EXP_CNUM_4 },
+        ConstNumTc { case: CASE_CNUM_5, exp: &EXP_CNUM_5 },
+        ConstNumTc { case: CASE_CNUM_6, exp: &EXP_CNUM_6 },
+    ];
+
+    #[test]
+    fn test_parse_const_num_mapper() {
+        for tc in &CONST_NUM_CASES {
+            let samples: Vec<_, 5> =
+                Builder::<1>::new_from_string(tc.case).with_const_num_mapper::<i8>(&CONST_NUM_MAP_I8).build()
+                    .map(|item| (item.index, RecNum { changed: item.changed, value: item.values[0] }))
+                    .collect();
+            assert_eq!(tc.exp.len(), samples.len(), "unexpected number of values for case '{}'", tc.case);
+            for (i, (index, sample)) in samples.iter().enumerate() {
+                assert_eq!(i, *index, "index mismatch at index {} for case '{}'", i, tc.case);
+                assert_eq!(tc.exp[i], *sample, "Sample mismatch at index {} for case '{}'", i, tc.case);
+            }
+        }
+    }
+
+    // --- Hash Bool Mapper (requires std) ---
+    #[cfg(feature = "std")]
+    #[test]
+    fn test_parse_hash_bool_mapper() {
+        use std::collections::HashMap;
+        let map: HashMap<char, Entry<bool>> = [
+            ('H', Entry::Value(true)),
+            ('L', Entry::Value(false)),
+            ('|', Entry::Toggle),
+        ].into();
+        let cases: [(&str, &[Rec]); 4] = [
+            ("L",    &[Rec { changed: false, value: false }]),
+            ("H",    &[Rec { changed: false, value: true }]),
+            ("L|H",  &[Rec { changed: false, value: false }, Rec { changed: true, value: true }, Rec { changed: false, value: true }]),
+            ("H|L",  &[Rec { changed: false, value: true  }, Rec { changed: true, value: false }, Rec { changed: false, value: false }]),
+        ];
+        for (case, exp) in &cases {
+            let samples: Vec<_, 5> =
+                Builder::<1>::new_from_string(case).with_hash_bool_mapper(&map).build()
+                    .map(|item| (item.index, Rec { changed: item.changed, value: item.values[0] }))
+                    .collect();
+            assert_eq!(exp.len(), samples.len(), "unexpected number of values for case '{}'", case);
+            for (i, (index, sample)) in samples.iter().enumerate() {
+                assert_eq!(i, *index, "index mismatch at index {} for case '{}'", i, case);
+                assert_eq!(exp[i], *sample, "Sample mismatch at index {} for case '{}'", i, case);
+            }
+        }
+    }
+
+    // --- Hash Num Mapper (requires std) ---
+    #[cfg(feature = "std")]
+    #[test]
+    fn test_parse_hash_num_mapper() {
+        use std::collections::HashMap;
+        let map: HashMap<char, Entry<i8>> = [
+            ('X', Entry::Value(5i8)),
+            ('_', Entry::Value(0i8)),
+            ('|', Entry::Toggle),
+        ].into();
+        let cases: [(&str, &[RecNum<i8>]); 4] = [
+            ("_",    &[RecNum { changed: false, value: 0 }]),
+            ("X",    &[RecNum { changed: false, value: 5 }]),
+            ("_|X",  &[RecNum { changed: false, value: 0 }, RecNum { changed: true, value: 5 }, RecNum { changed: false, value: 5 }]),
+            ("X|_",  &[RecNum { changed: false, value: 5 }, RecNum { changed: true, value: 0 }, RecNum { changed: false, value: 0 }]),
+        ];
+        for (case, exp) in &cases {
+            let samples: Vec<_, 5> =
+                Builder::<1>::new_from_string(case).with_hash_num_mapper::<i8>(&map).build()
+                    .map(|item| (item.index, RecNum { changed: item.changed, value: item.values[0] }))
+                    .collect();
+            assert_eq!(exp.len(), samples.len(), "unexpected number of values for case '{}'", case);
+            for (i, (index, sample)) in samples.iter().enumerate() {
+                assert_eq!(i, *index, "index mismatch at index {} for case '{}'", i, case);
+                assert_eq!(exp[i], *sample, "Sample mismatch at index {} for case '{}'", i, case);
+            }
+        }
+    }
+    
 }
