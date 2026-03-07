@@ -13,7 +13,7 @@ impl<'a> Line<'a> {
     }
     pub fn into_iter(self) -> LineIterator<'a> {
         let content_iter = self.content.chars();
-        let remain_iter = if self.remain.len() > 0 {
+        let remain_iter = if !self.remain.is_empty() {
             Some(LineParser::new(self.remain))
         } else {
             None
@@ -51,16 +51,16 @@ impl Iterator for LineIterator<'_> {
             return n;
         }
         if let Some(iter) = &mut self.remain_iter {
-            // walt through the lines and look for the same label. If found, 
+            // walk through the lines and look for the same label. If found, 
             // that becomes the new content_iter. Remain is updated to the string 
             //after that line.
-            while let Some(line) = iter.next() {
+            for line in iter.by_ref() {
                 if line.label == self.label {
                     self.content_iter = line.content.chars();
-                    self.remain_iter = if line.remain.len() > 0 {
-                        Some(LineParser::new(line.remain))
-                    } else {
+                    self.remain_iter = if line.remain.is_empty() {
                         None
+                    } else {
+                        Some(LineParser::new(line.remain))
                     };
                     return self.next();
                 }
@@ -104,7 +104,7 @@ impl<'a> LineParser<'a> {
                     .map_err(|_| ParseError::CapacityFull)?;
             } else {
                 // We have a label. Add it only if it is not already known.
-                if let None = lines.iter().find(|l| l.label == line.label) {
+                if !lines.iter().any(|l| l.label == line.label) {
                     // We have a new label, so we can add it. For remain, we need the string after this line.
                     lines.push(line)                        
                         .map_err(|_| ParseError::CapacityFull)?;
@@ -135,13 +135,13 @@ impl<'a> Iterator for LineParser<'a> {
             match c {
                 '\n' | '\r' => {
                     let content = &self.remain[start..end]
-                        .trim_end_matches(|c| c == ' ' || c == '\t');
+                        .trim_end_matches([' ', '\t']);
                     self.remain = self.remain[idx+1..]
-                        .trim_start_matches(|c| c == '\n' || c == '\r');
+                        .trim_start_matches(['\n', '\r']);
                     return Some(Line::new(label, content,  if label.is_empty() {
                         ""
                     } else {
-                        &self.remain
+                        self.remain
                     }));
                 },
                 '#' => {
@@ -186,7 +186,7 @@ impl<'a> Iterator for LineParser<'a> {
         }
         if end > start && matches!(state, LabelOrContent | Content | Comment) {
             let content = &self.remain[start..end]
-                .trim_end_matches(|c| c == ' ' || c == '\t');
+                .trim_end_matches([' ', '\t']);
             self.remain = "";
             Some(Line::new(label, content, ""))
         } else {

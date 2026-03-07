@@ -86,11 +86,7 @@ impl<const N:usize, M> Iterator for Parser<'_, N, M>
         let mut item = Item::<MapOut<M>,N>::new();
         let mut eols:Vec<usize,N> = Vec::new();
         for (line_idx,iter) in self.line_iters.iter_mut().enumerate() {
-            let last_value = if let Some(ref last_values) = self.last_values {
-                Some(last_values[line_idx])
-            } else {
-                None
-            };
+            let last_value = self.last_values.as_ref().map(|last_values| last_values[line_idx]);
             let c = iter.next();
             let val = if let Some(c) = c {
                 if self.mapper.is_toggle(c) {
@@ -107,13 +103,11 @@ impl<const N:usize, M> Iterator for Parser<'_, N, M>
                                 //last-value AND no ext value. Assume low at start.
                                 warn!("Cannot infer level for toggle at index {}, using default low as start.", self.index);
                                 self.mapper.high()
+                            } else if let Some(v) = self.mapper.value(n) {
+                                v
                             } else {
-                                if let Some(v) = self.mapper.value(n) {
-                                    v
-                                } else {
-                                    error!("Unknown character, at index {}, stop parsing", self.index);
-                                    return None;
-                                }
+                                error!("Unknown character, at index {}, stop parsing", self.index);
+                                return None;
                             }
                         } else {
                             // This is an unexpected case: There is no last-value AND no no ext value.
@@ -121,13 +115,11 @@ impl<const N:usize, M> Iterator for Parser<'_, N, M>
                             self.mapper.high()
                         }
                     }
+                } else if let Some(v) = self.mapper.value(c) {
+                    v
                 } else {
-                    if let Some(v) = self.mapper.value(c) {
-                        v
-                    } else {
-                        error!("Unknown character, at index {}, stop parsing", self.index);
-                        return None;
-                    }
+                    error!("Unknown character, at index {}, stop parsing", self.index);
+                    return None;
                 }
             } else {
                 // End of line here.
@@ -149,7 +141,7 @@ impl<const N:usize, M> Iterator for Parser<'_, N, M>
 
         // If any line returned some value, return the item. 
         if eols.len() < self.line_iters.len() {
-            if eols.len() > 0 {
+            if !eols.is_empty() {
                 warn!("Line(s) {:?} are only {} long. Other lines are longer.", eols, self.index);
             }
             Some(item)
@@ -327,28 +319,28 @@ mod tests {
     ];
 
     const ASCII_TO_EVT_CASES: [AsciiToEvtTc; 22] = [
-        AsciiToEvtTc { case: &CASE_1_1, exp: &EXP_1_1 },
-        AsciiToEvtTc { case: &CASE_1_2, exp: &EXP_1_2 },
-        AsciiToEvtTc { case: &CASE_1_3, exp: &EXP_1_3 },
-        AsciiToEvtTc { case: &CASE_1_4, exp: &EXP_1_4 },
-        AsciiToEvtTc { case: &CASE_1_5, exp: &EXP_1_5 },
-        AsciiToEvtTc { case: &CASE_1_6, exp: &EXP_1_6 },
-        AsciiToEvtTc { case: &CASE_1_7, exp: &EXP_1_7 },
-        AsciiToEvtTc { case: &CASE_1_8, exp: &EXP_1_8 },
-        AsciiToEvtTc { case: &CASE_1_9, exp: &EXP_1_9 },
-        AsciiToEvtTc { case: &CASE_1_10, exp: &EXP_1_10 },
-        AsciiToEvtTc { case: &CASE_1_11, exp: &EXP_1_11 },
-        AsciiToEvtTc { case: &CASE_1_12, exp: &EXP_1_12 },
-        AsciiToEvtTc { case: &CASE_1_13, exp: &EXP_1_13 },
-        AsciiToEvtTc { case: &CASE_1_14, exp: &EXP_1_14 },
-        AsciiToEvtTc { case: &CASE_1_15, exp: &EXP_1_15 },
-        AsciiToEvtTc { case: &CASE_1_16, exp: &EXP_1_16 },
-        AsciiToEvtTc { case: &CASE_1_17, exp: &EXP_1_17 },
-        AsciiToEvtTc { case: &CASE_1_18, exp: &EXP_1_18 },
-        AsciiToEvtTc { case: &CASE_2_1, exp: &EXP_2_1 },
-        AsciiToEvtTc { case: &CASE_2_2, exp: &EXP_2_2 },
-        AsciiToEvtTc { case: &CASE_2_3, exp: &EXP_2_3 },
-        AsciiToEvtTc { case: &CASE_2_4, exp: &EXP_2_4 },
+        AsciiToEvtTc { case: CASE_1_1, exp: &EXP_1_1 },
+        AsciiToEvtTc { case: CASE_1_2, exp: &EXP_1_2 },
+        AsciiToEvtTc { case: CASE_1_3, exp: &EXP_1_3 },
+        AsciiToEvtTc { case: CASE_1_4, exp: &EXP_1_4 },
+        AsciiToEvtTc { case: CASE_1_5, exp: &EXP_1_5 },
+        AsciiToEvtTc { case: CASE_1_6, exp: &EXP_1_6 },
+        AsciiToEvtTc { case: CASE_1_7, exp: &EXP_1_7 },
+        AsciiToEvtTc { case: CASE_1_8, exp: &EXP_1_8 },
+        AsciiToEvtTc { case: CASE_1_9, exp: &EXP_1_9 },
+        AsciiToEvtTc { case: CASE_1_10, exp: &EXP_1_10 },
+        AsciiToEvtTc { case: CASE_1_11, exp: &EXP_1_11 },
+        AsciiToEvtTc { case: CASE_1_12, exp: &EXP_1_12 },
+        AsciiToEvtTc { case: CASE_1_13, exp: &EXP_1_13 },
+        AsciiToEvtTc { case: CASE_1_14, exp: &EXP_1_14 },
+        AsciiToEvtTc { case: CASE_1_15, exp: &EXP_1_15 },
+        AsciiToEvtTc { case: CASE_1_16, exp: &EXP_1_16 },
+        AsciiToEvtTc { case: CASE_1_17, exp: &EXP_1_17 },
+        AsciiToEvtTc { case: CASE_1_18, exp: &EXP_1_18 },
+        AsciiToEvtTc { case: CASE_2_1, exp: &EXP_2_1 },
+        AsciiToEvtTc { case: CASE_2_2, exp: &EXP_2_2 },
+        AsciiToEvtTc { case: CASE_2_3, exp: &EXP_2_3 },
+        AsciiToEvtTc { case: CASE_2_4, exp: &EXP_2_4 },
     ];
 
     #[test]
@@ -434,12 +426,12 @@ mod tests {
     ];
 
     const ASCIIS_TO_EVT_CASES: [AsciisToEvtTc<2>; 6] = [
-        AsciisToEvtTc { case: &CASE_3_1, exp: &EXP_3_1 },
-        AsciisToEvtTc { case: &CASE_3_2, exp: &EXP_3_2 },
-        AsciisToEvtTc { case: &CASE_3_3, exp: &EXP_3_3 },
-        AsciisToEvtTc { case: &CASE_3_4, exp: &EXP_3_4 },
-        AsciisToEvtTc { case: &CASE_3_5, exp: &EXP_3_5 },
-        AsciisToEvtTc { case: &CASE_3_6, exp: &EXP_3_6 },
+        AsciisToEvtTc { case: CASE_3_1, exp: &EXP_3_1 },
+        AsciisToEvtTc { case: CASE_3_2, exp: &EXP_3_2 },
+        AsciisToEvtTc { case: CASE_3_3, exp: &EXP_3_3 },
+        AsciisToEvtTc { case: CASE_3_4, exp: &EXP_3_4 },
+        AsciisToEvtTc { case: CASE_3_5, exp: &EXP_3_5 },
+        AsciisToEvtTc { case: CASE_3_6, exp: &EXP_3_6 },
     ];
 
     #[test]
@@ -477,7 +469,7 @@ mod tests {
 
 
     const ASCIIS_TO_EVT_CASES_LABS: [AsciisToEvtTc<3>; 1] = [
-        AsciisToEvtTc { case: &CASE_4_1, exp: &EXP_4_1 },
+        AsciisToEvtTc { case: CASE_4_1, exp: &EXP_4_1 },
     ];
 
    #[test]
