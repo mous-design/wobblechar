@@ -13,6 +13,7 @@ pub use line_parser::ParseError;
 /// A single timestep produced by the [`Parser`] iterator.
 ///
 /// Each `Item` corresponds to one character position across all `N` lines.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Item<T,const N:usize > {
     /// The decoded value for each line at this timestep.
     pub values: Vec<T, N>,

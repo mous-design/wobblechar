@@ -6,7 +6,7 @@ use num_traits::Num;
 /// [`with_const_bool_map`](crate::Builder::with_const_bool_map),
 /// [`with_const_num_mapper`](crate::Builder::with_const_num_mapper), and
 /// the `HashMap`-based mapper methods.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Entry<T> {
     /// The character maps directly to this value.
     Value(T),
@@ -92,6 +92,7 @@ pub trait Mapper where <Self::Map as LookupMap>::Out: Copy + PartialEq,
 /// A [`Mapper`] for `bool` output values.
 ///
 /// Toggle is implemented as logical negation (`!v`), since arithmetic on `bool` is not allowed in Rust.
+#[derive(Clone, Debug)]
 pub struct BoolMapper<L: LookupMap> {
     map: L
 }
@@ -112,6 +113,7 @@ impl<L: LookupMap<Out = bool>> Mapper for BoolMapper<L> {
 ///
 /// Toggle is implemented as `min + max - v`, which correctly mirrors any
 /// value between the two extremes defined by the [`LookupMap`].
+#[derive(Clone, Debug)]
 pub struct NumMapper<L> where L:LookupMap
 {
     map: L
@@ -143,6 +145,7 @@ pub mod default {
     use super::{LookupMap, Entry};
     use core::marker::PhantomData;
 
+    #[derive(Clone, Copy, Debug, Default)]
     pub struct LookupBool;
     impl LookupBool {
         pub fn new() -> Self {
@@ -163,6 +166,7 @@ pub mod default {
     }
 
     use num_traits::Num;
+    #[derive(Clone, Copy, Debug, Default)]
     pub struct LookupNum<T> where T: Num + Copy + Ord {
         _phantom: PhantomData<T>
     }
@@ -194,6 +198,7 @@ pub mod hash {
     use std::collections::HashMap;
 
     // Boolen
+    #[derive(Clone, Copy, Debug)]
     pub struct LookupBool<'a> {
         map: &'a HashMap<char, Entry<bool>>,
     }
@@ -214,6 +219,7 @@ pub mod hash {
 
     // Numeric
     use num_traits::Num;
+    #[derive(Clone, Copy, Debug)]
     pub struct LookupNum<'a, T> where T: Num + Copy + Ord {
         map: &'a HashMap<char, Entry<T>>,
         min: T,
@@ -248,6 +254,7 @@ pub mod constant {
     // const CHAR_MAP: [(char, i8); 3] = [('X', 1), ('-', 0), ('_', -1)];
 
     // Boolen
+    #[derive(Clone, Copy, Debug)]
     pub struct LookupBool<'a> {
         map: &'a [(char, Entry<bool>)],
     }
@@ -269,6 +276,7 @@ pub mod constant {
 
     // Integers
     use num_traits::Num;
+    #[derive(Clone, Copy, Debug)]
     pub struct LookupNum<'a, T> where T: Num + Copy + Ord {
         map: &'a [(char, Entry<T>)],
         min: T,

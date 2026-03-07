@@ -78,7 +78,7 @@ enum LineParseState {
     Comment, // We have seen a '#' and are now ignoring everything until the next newline.
 }
 use LineParseState::*;
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
     CapacityFull,
 }
