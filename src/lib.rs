@@ -1,46 +1,84 @@
-//! A Rust library for parsing and generating wobbly character-based waveforms (ASCII/UTF-8).
-//! Converts `N` lines of ASCII representations of samples into callback calls 
-//! for each character.
+//! Parse ASCII/UTF-8 waveform diagrams into a stream of decoded samples.
 //!
-//! ## Callback arguments
-//! - `timestamp`: The time just before the character, in ticks. Each character represents 1 tick.
-//! - `values`: An array of `N` boolean values, one for each line.
-//! - `changed`: `true` if any of the lines changed since the last callback. If
-//!      you're only interested in changes, ignore calls where `changed` is `false`.
+//! `wobblechar` creates a bridge between the human-friendly world of text
+//! waveforms and the structured data needed for programmatic processing. It was
+//! born out of the need to make testing less tedious and more intuitive. 
+//! 
+//! `wobblechar` takes one or more lines of text waveforms and converts them 
+//! into an iterator of [`Item`]s, one per character position. Each item carries
+//! the decoded value for every line and a `changed` flag that is `true` 
+//! whenever at least one line changed since the previous timestep.
 //!
-//! ## Character Mapping
-//! - `'_'`: Represents `false`.
-//! - `'|'`: Represents an edge. The value depends on the next character:
-//!   - If followed by `'|'` or the end of the string: Toggle the last value.
-//!   - If followed by `'_'`: Represents `false`.
-//!   - Otherwise: Represents `true`.
-//! - Any other character (e.g., `' '`, `'X'`, `'M'`): Represents `true`.
+//! ## Getting started
 //!
-//! ## Example
+//! Use [`Builder`] to construct a parser:
+//!
 //! ```
 //! use wobblechar::Builder;
-//! let expect = [(0, [false, true], false), (1, [true, false], true)];
-//! for item in Builder::<2>::new_from_string("_‾\n‾_").with_def_bool_mapper().build() {
-//!     let (exp_idx, exp_vals, exp_changed) = expect[item.index];
-//!     assert_eq!(item.index, exp_idx);
-//!     assert_eq!([item.values[0], item.values[1]], exp_vals);
-//!     assert_eq!(item.changed, exp_changed);
+//!
+//! // Two-line waveform; each character is one timestep.
+//! for item in Builder::<2>::new_from_string("
+//! _|‾|_
+//! ‾|_|‾
+//! ")
+//!     .with_def_bool_mapper()
+//!     .build()
+//! {
+//!     println!("t={} values={:?} changed={}", item.index, item.values, item.changed);
 //! }
 //! ```
+//!
+//! ## Default character mapping
+//!
+//! The default mappers (`with_def_bool_mapper` / `with_def_num_mapper`) use:
+//!
+//! | Character | Meaning |
+//! |-----------|---------|
+//! | `_`       | Low (`false` / `0`) |
+//! | `|`       | Edge — toggles the previous value |
+//! | anything else (e.g. `‾`, `X`) | High (`true` / `1`) |
+//!
+//! Custom mappings can be provided via [`Builder::with_const_bool_map`],
+//! [`Builder::with_const_num_mapper`], or (with the `std` feature) the
+//! `HashMap`-based variants.
+//!
+//! ## Multi-line input format
+//!
+//! Lines are separated by `\n`. Leading/trailing whitespace and `#` comments
+//! are stripped. Lines may carry a label prefix (`Name: content`) to allow
+//! interleaved or non-contiguous line blocks:
+//!
+//! ```text
+//! CLK: _|‾|_|‾|_   # clock
+//! DAT: ___‾‾‾___   # data
+//! # some comment
+//! CLK: ‾‾‾___‾‾‾   # clock continued
+//! DAT: ___‾‾‾___   # data continued
+//! ```
+//! 
+//! Any set of characters, starting from the first non-whitespace character 
+//! up to the first `:` is considered the label. Except of course for the
+//! `#`-character.
+//! 
+//! ## `no_std` support
+//!
+//! The crate is `no_std` by default, which means you can use it in no_std 
+//! environments without problems. If you have a project with std, enable the 
+//! `std` feature for `HashMap`-backed mappers.
 
-// parse_waveform(text: &str) -> Vec<bool>
-// generate_waveform(data: &[bool]) -> String
-// generate_waveform_with_chars(data: &[bool], high_char: char, low_char: char) -> String (voor UTF-8 ondersteuning).
 
 #![cfg_attr(not(feature = "std"), no_std)]  // Set no_std if std is off
 
-// #[cfg(feature = "std")]
-// extern crate std;
-
-#[cfg(not(feature = "std"))]
-extern crate alloc;  // For allocation-types (eq. Vec, String) in no_std
-
-
 pub mod parser;
-pub use parser::{builder::Builder, Item};
-// pub use crate::parser::{line_to_callback, lines_to_callback};
+pub use parser::{
+    builder::Builder,
+    Item,
+    Parser,
+    Entry,
+    ParseError,
+    BoolMapper,
+    NumMapper,
+    LookupMap,
+    Mapper,
+    mapper,
+};

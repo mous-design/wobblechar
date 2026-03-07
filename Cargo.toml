@@ -2,11 +2,12 @@
 name = "wobblechar"
 version = "0.1.0"
 edition = "2024"
-description = "Convert ASCII timing diagrams to callback-based events for testing and simulation."
-license = "MIT OR Apache-2.0"  # Kies een license
-keywords = ["ascii", "waveform", "signal", "testing", "text waveform", 
-    "Unicode waveform", "UTF-8 waveform", "character-based waveform", "embedded",
-    "no-std"]
+rust-version = "1.85"
+authors = ["Paul Mourus <paul@mourus.com>"]
+repository = "https://github.com/mous-design/wobblechar"
+description = "Parse ASCII/UTF-8 waveform diagrams into a stream of decoded samples."
+license = "MIT OR Apache-2.0"
+keywords = ["waveform", "signal", "testing", "embedded", "no-std"]
 categories = ["development-tools::testing", "embedded", "no-std"]
 
 [dependencies]

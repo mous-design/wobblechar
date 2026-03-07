@@ -1,16 +1,28 @@
 use log::{error, warn};
-mod mapper;
+pub mod mapper;
 mod line_parser;
 pub mod builder;
 use core::marker::PhantomData;
 use core::iter::Iterator;
-use mapper::{Mapper,BoolMapper, NumMapper, LookupMap};
 use heapless::Vec;
-use line_parser::{LineParser, LineIterator, ParseError};
+use line_parser::{LineParser, LineIterator};
 
+pub use mapper::{Entry, BoolMapper, NumMapper, LookupMap, Mapper};
+pub use line_parser::ParseError;
+
+/// A single timestep produced by the [`Parser`] iterator.
+///
+/// Each `Item` corresponds to one character position across all `N` lines.
 pub struct Item<T,const N:usize > {
+    /// The decoded value for each line at this timestep.
     pub values: Vec<T, N>,
+    /// Zero-based index of this timestep (needed in case you filter out items).
     pub index: usize,
+    /// `true` if any value changed compared to the previous timestep.
+    /// Always `true` if any line contains a toggle character at this position, 
+    ///   even if the resulting value is the same as before.
+    /// Always `false` for the very first timestep (no previous to compare against).
+    ///   Except when first char is a toggle, then it is `true` because the toggle forces a change.
     pub changed: bool,
 }
 impl <T, const N:usize> Item<T, N> {
@@ -25,6 +37,15 @@ impl <T, const N:usize> Item<T, N> {
 }
 
 type MapOut<M> = <<M as Mapper>::Map as LookupMap>::Out;
+
+/// Iterator over decoded timesteps from `N` lines of waveforms. 
+/// Don't be confused: N is NOT the number of input lines, since some lines are 
+/// ignored (empty, only comment) and others are joined (same label). So the N
+/// is actually the number of output lines, or, to put it differently, the 
+/// number of signal lines you are here simulating.
+///
+/// Yields one [`Item`] per character position. Typically constructed via
+/// [`Builder`](crate::Builder) rather than directly.
 pub struct Parser<'a, const N:usize, M>
     where M:Mapper
 {
