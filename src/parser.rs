@@ -39,7 +39,7 @@ impl <T, const N:usize> Item<T, N> {
 
 type MapOut<M> = <<M as Mapper>::Map as LookupMap>::Out;
 
-/// Iterator over decoded timesteps from `N` lines of waveforms. 
+/// Iterator over decoded timesteps for `N` signal lines. 
 /// Don't be confused: N is NOT the number of input lines, since some lines are 
 /// ignored (empty, only comment) and others are joined (same label). So the N
 /// is actually the number of output lines, or, to put it differently, the 
