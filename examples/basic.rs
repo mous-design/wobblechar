@@ -18,7 +18,7 @@ fn bool_mapper() {
     {
         println!("t={} value={} changed={}", item.index, item.values[0], item.changed);
     }
-    // t=0 value=false changed=true
+    // t=0 value=false changed=false
     // t=1 value=true  changed=true
     // t=2 value=true  changed=false
     // t=3 value=false changed=true
@@ -50,10 +50,10 @@ fn multi_line_labeled() {
     println!("--- labeled multi-line ---");
     for item in Builder::<2>::new_from_string("
         CLK: _|‾|_|‾|_   # first block
-        DAT: ___‾‾‾___
+        DAT: ___|‾‾‾|_
 
         CLK: ‾|_|‾|_|‾   # continuation
-        DAT: ‾‾‾___‾‾‾
+        DAT: |‾‾‾|__|‾
     ")
         .with_def_bool_mapper()
         .build()
@@ -64,23 +64,23 @@ fn multi_line_labeled() {
         );
     }
     // t=00 CLK=false DAT=false changed=false
-    // t=01 CLK=true DAT=false changed=true
-    // t=02 CLK=true DAT=false changed=false
+    // t=01 CLK=true  DAT=false changed=true
+    // t=02 CLK=true  DAT=false changed=false
     // t=03 CLK=false DAT=true changed=true
     // t=04 CLK=false DAT=true changed=false
-    // t=05 CLK=true DAT=true changed=true
-    // t=06 CLK=true DAT=false changed=true
+    // t=05 CLK=true  DAT=true changed=true
+    // t=06 CLK=true  DAT=true changed=false
     // t=07 CLK=false DAT=false changed=true
     // t=08 CLK=false DAT=false changed=false
-    // t=09 CLK=true DAT=true changed=true
+    // t=09 CLK=true  DAT=true changed=true
     // t=10 CLK=false DAT=true changed=true
     // t=11 CLK=false DAT=true changed=false
-    // t=12 CLK=true DAT=false changed=true
-    // t=13 CLK=true DAT=false changed=false
+    // t=12 CLK=true  DAT=true changed=true
+    // t=13 CLK=true  DAT=false changed=true
     // t=14 CLK=false DAT=false changed=true
-    // t=15 CLK=false DAT=true changed=true
-    // t=16 CLK=true DAT=true changed=true
-    // t=17 CLK=true DAT=true changed=false
+    // t=15 CLK=false DAT=false changed=false
+    // t=16 CLK=true  DAT=true changed=true
+    // t=17 CLK=true  DAT=true changed=false
 }
 
 /// Custom character map using a `const` slice — works in `no_std` environments.

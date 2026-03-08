@@ -50,10 +50,10 @@
 //!
 //! ```text
 //! CLK: _|‾|_|‾|_   # clock
-//! DAT: ___‾‾‾___   # data
+//! DAT: ___|‾‾‾|_   # data
 //! # some comment
 //! CLK: ‾‾‾___‾‾‾   # clock continued
-//! DAT: ___‾‾‾___   # data continued
+//! DAT: ___|‾‾‾|__  # data continued
 //! ```
 //! 
 //! Any set of characters, starting from the first non-whitespace character 

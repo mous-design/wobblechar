@@ -8,7 +8,7 @@ need to make testing less tedious and more intuitive.
 
 ```text
 CLK: _|‾|_|‾|_
-DAT: ___‾‾‾___
+DAT: ___|‾‾‾|_
 ```
 
 ## Getting started
@@ -55,10 +55,10 @@ continuation across blocks. This is useful when interleaving multiple signals:
 
 ```text
 CLK: _|‾|_|‾|_   # clock
-DAT: ___‾‾‾___   # data
+DAT: ___|‾‾|__   # data
 # some comment
-CLK: ‾‾‾___‾‾‾   # clock continued
-DAT: ___‾‾‾___   # data continued
+CLK: |‾|_|‾|_    # clock continued
+DAT: __|‾‾‾|_    # data continued
 ```
 
 ## `no_std` support

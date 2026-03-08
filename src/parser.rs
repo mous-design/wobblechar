@@ -168,179 +168,133 @@ mod tests {
         exp: &'static [Rec],
     }
 
-    // # Special cases
-    // Empty
-    const CASE_1_1: &str = "";
-    const EXP_1_1: [Rec; 0] = [];
-    // No edge low
-    const CASE_1_2: &str = "_";
-    const EXP_1_2: [Rec; 1] = [Rec {changed: false, value:false}];
-    // No edge high
-    const CASE_1_3: &str = "‾";
-    const EXP_1_3: [Rec; 1] = [Rec {changed: false, value:true}];
-
-    // # Cases with |
-    // Only |
-    const CASE_1_4: &str = "|";
-    const EXP_1_4: [Rec; 1] = [Rec {changed: true, value:true}];
-    // Only | end after _
-    const CASE_1_5: &str = "_|";
-    const EXP_1_5: [Rec; 2] = [
-        Rec {changed: false, value:false},
-        Rec {changed: true, value:true},
-    ];
-    // Only | end after X
-    const CASE_1_6: &str = "‾|";
-    const EXP_1_6: [Rec; 2] = [
-        Rec {changed: false, value:true},
-        Rec {changed: true, value:false},
-    ];
-    // Only || -> Assumes low at start
-    const CASE_1_7: &str = "||";
-    const EXP_1_7: [Rec; 2] = [
-        Rec {changed: true, value:true},
-        Rec {changed: true, value:false},
-    ];
-    // || at start -> Assumes low at start
-    const CASE_1_8: &str = "||_";
-    const EXP_1_8: [Rec; 3] = [
-        Rec {changed: true, value:true},
-        Rec {changed: true, value:false},
-        Rec {changed: false, value:false},
-    ];
-    // Normal edge up
-    const CASE_1_9: &str = "_|‾";
-    const EXP_1_9: [Rec; 3] = [
-        Rec {changed: false, value:false},
-        Rec {changed: true, value:true},
-        Rec {changed: false, value:true},
-    ];
-    // Normal edge down
-    const CASE_1_10: &str = "‾|_";
-    const EXP_1_10: [Rec; 3] = [
-        Rec {changed: false, value:true},
-        Rec {changed: true, value:false},
-        Rec {changed: false, value:false},
-    ];
-    // Only | between low
-    const CASE_1_11: &str = "_|_";
-    const EXP_1_11: [Rec; 3] = [
-        Rec {changed: false, value:false},
-        Rec {changed: true, value:true},
-        Rec {changed: true, value:false},
-    ];
-    // Only | between high
-    const CASE_1_12: &str = "‾|‾";
-    const EXP_1_12: [Rec; 3] = [
-        Rec {changed: false, value:true},
-        Rec {changed: true, value:false},
-        Rec {changed: true, value:true},
-    ];
-    // Double | between low
-    const CASE_1_13: &str = "_||_";
-    const EXP_1_13: [Rec; 4] = [
-        Rec {changed: false, value:false},
-        Rec {changed: true, value:true},
-        Rec {changed: true, value:false},
-        Rec {changed: false, value:false},
-    ];
-    // Double | between high
-    const CASE_1_14: &str = "‾||‾";
-    const EXP_1_14: [Rec; 4] = [
-        Rec {changed: false, value:true},
-        Rec {changed: true, value:false},
-        Rec {changed: true, value:true},
-        Rec {changed: false, value:true},
-    ];
-
-    // Normal pulise from low
-    const CASE_1_15: &str = "_|‾|_";
-    const EXP_1_15: [Rec; 5] = [
-        Rec {changed: false, value:false},
-        Rec {changed: true, value:true},
-        Rec {changed: false, value:true},
-        Rec {changed: true, value:false},
-        Rec {changed: false, value:false},
-    ];
-    // Normal pulse from high
-    const CASE_1_16: &str = "‾|_|‾";
-    const EXP_1_16: [Rec; 5] = [
-        Rec {changed: false, value:true},
-        Rec {changed: true, value:false},
-        Rec {changed: false, value:false},
-        Rec {changed: true, value:true},
-        Rec {changed: false, value:true},
-    ];
-    // Triple case from low
-    const CASE_1_17: &str = "_|||_";
-    const EXP_1_17: [Rec; 5] = [
-        Rec {changed: false, value:false},
-        Rec {changed: true, value:true},
-        Rec {changed: true, value:false},
-        Rec {changed: true, value:true},
-        Rec {changed: true, value:false},
-    ];
-    // Triple case from high
-    const CASE_1_18: &str = "‾|||‾";
-    const EXP_1_18: [Rec; 5] = [
-        Rec {changed: false, value:true},
-        Rec {changed: true, value:false},
-        Rec {changed: true, value:true},
-        Rec {changed: true, value:false},
-        Rec {changed: true, value:true},
-    ];
-
-    // # Cases without | and other high char
-    // Pulse between low
-    const CASE_2_1: &str = "_X_";
-    const EXP_2_1: [Rec; 3] = [
-        Rec {changed: false, value:false},
-        Rec {changed: true, value:true},
-        Rec {changed: true, value:false},
-    ];
-    // Pulse between high
-    const CASE_2_2: &str = "X_X";
-    const EXP_2_2: [Rec; 3] = [
-        Rec {changed: false, value:true},
-        Rec {changed: true, value:false},
-        Rec {changed: true, value:true},
-    ];
-    // Only | end after low
-    const CASE_2_3: &str = "_X";
-    const EXP_2_3: [Rec; 2] = [
-        Rec {changed: false, value:false},
-        Rec {changed: true, value:true},
-    ];
-    // Only | end after high
-    const CASE_2_4: &str = "X_";
-    const EXP_2_4: [Rec; 2] = [
-        Rec {changed: false, value:true},
-        Rec {changed: true, value:false},
-    ];
-
     const ASCII_TO_EVT_CASES: [AsciiToEvtTc; 22] = [
-        AsciiToEvtTc { case: CASE_1_1, exp: &EXP_1_1 },
-        AsciiToEvtTc { case: CASE_1_2, exp: &EXP_1_2 },
-        AsciiToEvtTc { case: CASE_1_3, exp: &EXP_1_3 },
-        AsciiToEvtTc { case: CASE_1_4, exp: &EXP_1_4 },
-        AsciiToEvtTc { case: CASE_1_5, exp: &EXP_1_5 },
-        AsciiToEvtTc { case: CASE_1_6, exp: &EXP_1_6 },
-        AsciiToEvtTc { case: CASE_1_7, exp: &EXP_1_7 },
-        AsciiToEvtTc { case: CASE_1_8, exp: &EXP_1_8 },
-        AsciiToEvtTc { case: CASE_1_9, exp: &EXP_1_9 },
-        AsciiToEvtTc { case: CASE_1_10, exp: &EXP_1_10 },
-        AsciiToEvtTc { case: CASE_1_11, exp: &EXP_1_11 },
-        AsciiToEvtTc { case: CASE_1_12, exp: &EXP_1_12 },
-        AsciiToEvtTc { case: CASE_1_13, exp: &EXP_1_13 },
-        AsciiToEvtTc { case: CASE_1_14, exp: &EXP_1_14 },
-        AsciiToEvtTc { case: CASE_1_15, exp: &EXP_1_15 },
-        AsciiToEvtTc { case: CASE_1_16, exp: &EXP_1_16 },
-        AsciiToEvtTc { case: CASE_1_17, exp: &EXP_1_17 },
-        AsciiToEvtTc { case: CASE_1_18, exp: &EXP_1_18 },
-        AsciiToEvtTc { case: CASE_2_1, exp: &EXP_2_1 },
-        AsciiToEvtTc { case: CASE_2_2, exp: &EXP_2_2 },
-        AsciiToEvtTc { case: CASE_2_3, exp: &EXP_2_3 },
-        AsciiToEvtTc { case: CASE_2_4, exp: &EXP_2_4 },
+        // # Special cases
+        // Empty
+        AsciiToEvtTc { case: "", exp: &[] },
+        // No edge low
+        AsciiToEvtTc { case: "_", exp: &[Rec {changed: false, value:false}] },
+        // No edge high
+        AsciiToEvtTc { case: "‾", exp: &[Rec {changed: false, value:true}] },
+        // # Cases with |
+        // Only |
+        AsciiToEvtTc { case: "|", exp: &[Rec {changed: true, value:true}] },
+        // Only | end after _
+        AsciiToEvtTc { case: "_|", exp: &[
+            Rec {changed: false, value:false},
+            Rec {changed: true, value:true},
+        ]},
+        // Only | end after X
+        AsciiToEvtTc { case: "‾|", exp: &[
+            Rec {changed: false, value:true},
+            Rec {changed: true, value:false},
+        ]},
+        // Only || -> Assumes low at start
+        AsciiToEvtTc { case: "||", exp: &[
+            Rec {changed: true, value:true},
+            Rec {changed: true, value:false},
+        ]},
+        // || at start -> Assumes low at start
+        AsciiToEvtTc { case: "||_", exp: &[
+            Rec {changed: true, value:true},
+            Rec {changed: true, value:false},
+            Rec {changed: false, value:false},
+        ]},
+        // Normal edge up
+        AsciiToEvtTc { case: "_|‾", exp: &[
+            Rec {changed: false, value:false},
+            Rec {changed: true, value:true},
+            Rec {changed: false, value:true},
+        ]},
+        // Normal edge down
+        AsciiToEvtTc { case: "‾|_", exp: &[
+            Rec {changed: false, value:true},
+            Rec {changed: true, value:false},
+            Rec {changed: false, value:false},
+        ]},
+        // Only | between low
+        AsciiToEvtTc { case: "_|_", exp: &[
+            Rec {changed: false, value:false},
+            Rec {changed: true, value:true},
+            Rec {changed: true, value:false},
+        ]},
+        // Only | between high
+        AsciiToEvtTc { case: "‾|‾", exp: &[
+            Rec {changed: false, value:true},
+            Rec {changed: true, value:false},
+            Rec {changed: true, value:true},
+        ]},
+        // Double | between low
+        AsciiToEvtTc { case: "_||_", exp: &[
+            Rec {changed: false, value:false},
+            Rec {changed: true, value:true},
+            Rec {changed: true, value:false},
+            Rec {changed: false, value:false},
+        ]},
+        // Double | between high
+        AsciiToEvtTc { case: "‾||‾", exp: &[
+            Rec {changed: false, value:true},
+            Rec {changed: true, value:false},
+            Rec {changed: true, value:true},
+            Rec {changed: false, value:true},
+        ]},
+
+        // Normal pulise from low
+        AsciiToEvtTc { case: "_|‾|_", exp: &[
+            Rec {changed: false, value:false},
+            Rec {changed: true, value:true},
+            Rec {changed: false, value:true},
+            Rec {changed: true, value:false},
+            Rec {changed: false, value:false},
+        ]},
+        // Normal pulse from high
+        AsciiToEvtTc { case: "‾|_|‾", exp: &[
+            Rec {changed: false, value:true},
+            Rec {changed: true, value:false},
+            Rec {changed: false, value:false},
+            Rec {changed: true, value:true},
+            Rec {changed: false, value:true},
+        ]},
+        // Triple case from low
+        AsciiToEvtTc { case: "_|||_", exp: &[
+            Rec {changed: false, value:false},
+            Rec {changed: true, value:true},
+            Rec {changed: true, value:false},
+            Rec {changed: true, value:true},
+            Rec {changed: true, value:false},
+        ]},
+        // Triple case from high
+        AsciiToEvtTc { case: "‾|||‾", exp: &[
+            Rec {changed: false, value:true},
+            Rec {changed: true, value:false},
+            Rec {changed: true, value:true},
+            Rec {changed: true, value:false},
+            Rec {changed: true, value:true},
+        ]},
+
+        // # Cases without | and other high char
+        // Pulse between low
+        AsciiToEvtTc { case: "_X_", exp: &[
+            Rec {changed: false, value:false},
+            Rec {changed: true, value:true},
+            Rec {changed: true, value:false},
+        ]},
+        // Pulse between high
+        AsciiToEvtTc { case: "X_X", exp: &[
+            Rec {changed: false, value:true},
+            Rec {changed: true, value:false},
+            Rec {changed: true, value:true},
+        ]},
+        // Only | end after low
+        AsciiToEvtTc { case: "_X", exp: &[
+            Rec {changed: false, value:false},
+            Rec {changed: true, value:true},
+        ]},
+        // Only | end after high
+        AsciiToEvtTc { case: "X_", exp: &[
+            Rec {changed: false, value:true},
+            Rec {changed: true, value:false},
+        ]},
     ];
 
     #[test]
@@ -379,59 +333,49 @@ mod tests {
         case: &'static str,
         exp: &'static [RecMulti<N>],
     }
-
-    // Special cases
-    const CASE_3_1: &str = "\n";
-    const EXP_3_1: [RecMulti<2>; 0] = [];
-
-    const CASE_3_2: &str = "_\n‾";
-    const EXP_3_2: [RecMulti<2>; 1] = [
-        RecMulti { changed: false, values: [false, true]},
-    ];
-
-    // Different lengths
-    const CASE_3_3: &str = "_\n‾‾";
-    const EXP_3_3: [RecMulti<2>; 2] = [
-        RecMulti { changed: false, values: [false, true]},
-        RecMulti { changed: false, values: [false, true]},
-    ];
-    const CASE_3_4: &str = "__\n‾";
-    const EXP_3_4: [RecMulti<2>; 2] = [
-        RecMulti { changed: false, values: [false, true]},
-        RecMulti { changed: false, values: [false, true]},
-    ];
-
-    // Normal cases
-    const CASE_3_5: &str = 
-        "___‾‾_
-         _‾____";
-    const EXP_3_5: [RecMulti<2>; 6] = [
-        RecMulti { changed: false, values: [false, false]},
-        RecMulti { changed: true, values: [false, true]},
-        RecMulti { changed: true, values: [false, false]},
-        RecMulti { changed: true, values: [true, false]},
-        RecMulti { changed: false, values: [true, false]},
-        RecMulti { changed: true, values: [false, false]},
-    ];
-    const CASE_3_6: &str =
-        "‾‾‾__‾
-         ‾_‾‾‾‾";
-    const EXP_3_6: [RecMulti<2>; 6] = [
-        RecMulti { changed: false, values: [true, true]},
-        RecMulti { changed: true, values: [true, false]},
-        RecMulti { changed: true, values: [true, true]},
-        RecMulti { changed: true, values: [false, true]},
-        RecMulti { changed: false, values: [false, true]},
-        RecMulti { changed: true, values: [true, true]},
-    ];
-
     const ASCIIS_TO_EVT_CASES: [AsciisToEvtTc<2>; 6] = [
-        AsciisToEvtTc { case: CASE_3_1, exp: &EXP_3_1 },
-        AsciisToEvtTc { case: CASE_3_2, exp: &EXP_3_2 },
-        AsciisToEvtTc { case: CASE_3_3, exp: &EXP_3_3 },
-        AsciisToEvtTc { case: CASE_3_4, exp: &EXP_3_4 },
-        AsciisToEvtTc { case: CASE_3_5, exp: &EXP_3_5 },
-        AsciisToEvtTc { case: CASE_3_6, exp: &EXP_3_6 },
+        // Special cases
+        AsciisToEvtTc { case: "\n", exp: &[] },
+
+        AsciisToEvtTc { case: "_\n‾", exp: &[
+            RecMulti { changed: false, values: [false, true]},
+        ]},
+
+        // Different lengths
+        AsciisToEvtTc { case: "_\n‾‾", exp: &[
+            RecMulti { changed: false, values: [false, true]},
+            RecMulti { changed: false, values: [false, true]},
+        ]},
+        AsciisToEvtTc { case: "__\n‾", exp: &[
+            RecMulti { changed: false, values: [false, true]},
+            RecMulti { changed: false, values: [false, true]},
+        ]},
+
+        // Normal cases
+        AsciisToEvtTc {
+            case: 
+                "___‾‾_
+                 _‾____",
+            exp: &[
+                RecMulti { changed: false, values: [false, false]},
+                RecMulti { changed: true, values: [false, true]},
+                RecMulti { changed: true, values: [false, false]},
+                RecMulti { changed: true, values: [true, false]},
+                RecMulti { changed: false, values: [true, false]},
+                RecMulti { changed: true, values: [false, false]},
+            ]},
+        AsciisToEvtTc {
+            case: 
+                "‾‾‾__‾
+                 ‾_‾‾‾‾",
+            exp: &[
+                RecMulti { changed: false, values: [true, true]},
+                RecMulti { changed: true, values: [true, false]},
+                RecMulti { changed: true, values: [true, true]},
+                RecMulti { changed: true, values: [false, true]},
+                RecMulti { changed: false, values: [false, true]},
+                RecMulti { changed: true, values: [true, true]},
+            ]},        
     ];
 
     #[test]
@@ -452,24 +396,19 @@ mod tests {
     }
 
         // Now test labels
-    const CASE_4_1: &str = "
-    L1:_‾ # First line with label 1
-    L2:‾‾ # First line with label 2
-    _‾_‾  # No label
-    L1:‾_ # Label 1 continued
-    L2:_‾ # Label 2 continued
-    ";
-
-    const EXP_4_1: [RecMulti<3>; 4] = [
-        RecMulti { changed: false, values: [false, true, false]},
-        RecMulti { changed: true, values: [true, true, true]},
-        RecMulti { changed: true, values: [true, false, false]},
-        RecMulti { changed: true, values: [false, true, true]},
-    ];
-
-
     const ASCIIS_TO_EVT_CASES_LABS: [AsciisToEvtTc<3>; 1] = [
-        AsciisToEvtTc { case: CASE_4_1, exp: &EXP_4_1 },
+        AsciisToEvtTc { case: "
+            L1:_‾ # First line with label 1
+            L2:‾‾ # First line with label 2
+            _‾_‾  # No label
+            L1:‾_ # Label 1 continued
+            L2:_‾ # Label 2 continued
+        ", exp: &[
+            RecMulti { changed: false, values: [false, true, false]},
+            RecMulti { changed: true, values: [true, true, true]},
+            RecMulti { changed: true, values: [true, false, false]},
+            RecMulti { changed: true, values: [false, true, true]},
+        ]},
     ];
 
    #[test]
@@ -496,48 +435,33 @@ mod tests {
         changed: bool,
         value: T,
     }
-
-    // --- Default Num Mapper ---
-    const CASE_NUM_1: &str = "_";
-    const EXP_NUM_1: [RecNum<u8>; 1] = [RecNum { changed: false, value: 0 }];
-
-    const CASE_NUM_2: &str = "‾";
-    const EXP_NUM_2: [RecNum<u8>; 1] = [RecNum { changed: false, value: 1 }];
-
-    const CASE_NUM_3: &str = "_|‾";
-    const EXP_NUM_3: [RecNum<u8>; 3] = [
-        RecNum { changed: false, value: 0 },
-        RecNum { changed: true,  value: 1 },
-        RecNum { changed: false, value: 1 },
-    ];
-
-    const CASE_NUM_4: &str = "‾|_";
-    const EXP_NUM_4: [RecNum<u8>; 3] = [
-        RecNum { changed: false, value: 1 },
-        RecNum { changed: true,  value: 0 },
-        RecNum { changed: false, value: 0 },
-    ];
-
-    const CASE_NUM_5: &str = "_|‾|_";
-    const EXP_NUM_5: [RecNum<u8>; 5] = [
-        RecNum { changed: false, value: 0 },
-        RecNum { changed: true,  value: 1 },
-        RecNum { changed: false, value: 1 },
-        RecNum { changed: true,  value: 0 },
-        RecNum { changed: false, value: 0 },
-    ];
-
     struct DefNumTc {
         case: &'static str,
         exp: &'static [RecNum<u8>],
     }
 
     const DEF_NUM_CASES: [DefNumTc; 5] = [
-        DefNumTc { case: CASE_NUM_1, exp: &EXP_NUM_1 },
-        DefNumTc { case: CASE_NUM_2, exp: &EXP_NUM_2 },
-        DefNumTc { case: CASE_NUM_3, exp: &EXP_NUM_3 },
-        DefNumTc { case: CASE_NUM_4, exp: &EXP_NUM_4 },
-        DefNumTc { case: CASE_NUM_5, exp: &EXP_NUM_5 },
+        DefNumTc { case: "_", exp: &[RecNum { changed: false, value: 0 }]},
+        DefNumTc { case: "‾", exp: &[RecNum { changed: false, value: 1 }]},
+        DefNumTc { case: "_|‾", exp: &[
+            RecNum { changed: false, value: 0 },
+            RecNum { changed: true,  value: 1 },
+            RecNum { changed: false, value: 1 },
+        ]},
+
+        DefNumTc { case: "‾|_", exp: &[
+            RecNum { changed: false, value: 1 },
+            RecNum { changed: true,  value: 0 },
+            RecNum { changed: false, value: 0 },
+        ]},
+
+        DefNumTc { case: "_|‾|_", exp: &[
+            RecNum { changed: false, value: 0 },
+            RecNum { changed: true,  value: 1 },
+            RecNum { changed: false, value: 1 },
+            RecNum { changed: true,  value: 0 },
+            RecNum { changed: false, value: 0 },
+        ]},
     ];
 
     #[test]
@@ -562,54 +486,35 @@ mod tests {
         ('L', Entry::Value(false)),
         ('|', Entry::Toggle),
     ];
-
-    const CASE_CBOOL_1: &str = "L";
-    const EXP_CBOOL_1: [Rec; 1] = [Rec { changed: false, value: false }];
-
-    const CASE_CBOOL_2: &str = "H";
-    const EXP_CBOOL_2: [Rec; 1] = [Rec { changed: false, value: true }];
-
-    const CASE_CBOOL_3: &str = "LH";
-    const EXP_CBOOL_3: [Rec; 2] = [
-        Rec { changed: false, value: false },
-        Rec { changed: true,  value: true },
-    ];
-
-    const CASE_CBOOL_4: &str = "L|H";
-    const EXP_CBOOL_4: [Rec; 3] = [
-        Rec { changed: false, value: false },
-        Rec { changed: true,  value: true },
-        Rec { changed: false, value: true },
-    ];
-
-    const CASE_CBOOL_5: &str = "H|L";
-    const EXP_CBOOL_5: [Rec; 3] = [
-        Rec { changed: false, value: true },
-        Rec { changed: true,  value: false },
-        Rec { changed: false, value: false },
-    ];
-
-    const CASE_CBOOL_6: &str = "L|H|L";
-    const EXP_CBOOL_6: [Rec; 5] = [
-        Rec { changed: false, value: false },
-        Rec { changed: true,  value: true },
-        Rec { changed: false, value: true },
-        Rec { changed: true,  value: false },
-        Rec { changed: false, value: false },
-    ];
-
     struct ConstBoolTc {
         case: &'static str,
         exp: &'static [Rec],
     }
 
     const CONST_BOOL_CASES: [ConstBoolTc; 6] = [
-        ConstBoolTc { case: CASE_CBOOL_1, exp: &EXP_CBOOL_1 },
-        ConstBoolTc { case: CASE_CBOOL_2, exp: &EXP_CBOOL_2 },
-        ConstBoolTc { case: CASE_CBOOL_3, exp: &EXP_CBOOL_3 },
-        ConstBoolTc { case: CASE_CBOOL_4, exp: &EXP_CBOOL_4 },
-        ConstBoolTc { case: CASE_CBOOL_5, exp: &EXP_CBOOL_5 },
-        ConstBoolTc { case: CASE_CBOOL_6, exp: &EXP_CBOOL_6 },
+        ConstBoolTc { case: "L", exp: &[Rec { changed: false, value: false }]},
+        ConstBoolTc { case: "H",exp: &[Rec { changed: false, value: true }]},
+        ConstBoolTc { case: "LH",exp: &[
+            Rec { changed: false, value: false },
+            Rec { changed: true,  value: true },
+        ]},
+        ConstBoolTc { case: "L|H",exp: &[
+            Rec { changed: false, value: false },
+            Rec { changed: true,  value: true },
+            Rec { changed: false, value: true },
+        ]},
+        ConstBoolTc { case: "H|L",exp: &[
+            Rec { changed: false, value: true },
+            Rec { changed: true,  value: false },
+            Rec { changed: false, value: false },
+        ]},
+        ConstBoolTc { case: "L|H|L",exp: &[
+            Rec { changed: false, value: false },
+            Rec { changed: true,  value: true },
+            Rec { changed: false, value: true },
+            Rec { changed: true,  value: false },
+            Rec { changed: false, value: false },
+        ]},
     ];
 
     #[test]
@@ -636,54 +541,37 @@ mod tests {
         ('|', Entry::Toggle),
     ];
 
-    const CASE_CNUM_1: &str = "_";
-    const EXP_CNUM_1: [RecNum<i8>; 1] = [RecNum { changed: false, value: 0 }];
-
-    const CASE_CNUM_2: &str = "X";
-    const EXP_CNUM_2: [RecNum<i8>; 1] = [RecNum { changed: false, value: 5 }];
-
-    const CASE_CNUM_3: &str = "_X_";
-    const EXP_CNUM_3: [RecNum<i8>; 3] = [
-        RecNum { changed: false, value: 0 },
-        RecNum { changed: true,  value: 5 },
-        RecNum { changed: true,  value: 0 },
-    ];
-
-    const CASE_CNUM_4: &str = "_|X";
-    const EXP_CNUM_4: [RecNum<i8>; 3] = [
-        RecNum { changed: false, value: 0 },
-        RecNum { changed: true,  value: 5 },
-        RecNum { changed: false, value: 5 },
-    ];
-
-    const CASE_CNUM_5: &str = "X|_";
-    const EXP_CNUM_5: [RecNum<i8>; 3] = [
-        RecNum { changed: false, value: 5 },
-        RecNum { changed: true,  value: 0 },
-        RecNum { changed: false, value: 0 },
-    ];
-
-    const CASE_CNUM_6: &str = "_|X|_";
-    const EXP_CNUM_6: [RecNum<i8>; 5] = [
-        RecNum { changed: false, value: 0 },
-        RecNum { changed: true,  value: 5 },
-        RecNum { changed: false, value: 5 },
-        RecNum { changed: true,  value: 0 },
-        RecNum { changed: false, value: 0 },
-    ];
-
     struct ConstNumTc {
         case: &'static str,
         exp: &'static [RecNum<i8>],
     }
 
     const CONST_NUM_CASES: [ConstNumTc; 6] = [
-        ConstNumTc { case: CASE_CNUM_1, exp: &EXP_CNUM_1 },
-        ConstNumTc { case: CASE_CNUM_2, exp: &EXP_CNUM_2 },
-        ConstNumTc { case: CASE_CNUM_3, exp: &EXP_CNUM_3 },
-        ConstNumTc { case: CASE_CNUM_4, exp: &EXP_CNUM_4 },
-        ConstNumTc { case: CASE_CNUM_5, exp: &EXP_CNUM_5 },
-        ConstNumTc { case: CASE_CNUM_6, exp: &EXP_CNUM_6 },
+
+        ConstNumTc { case: "_", exp: &[RecNum { changed: false, value: 0 }]},
+        ConstNumTc { case: "X", exp: &[RecNum { changed: false, value: 5 }]},
+        ConstNumTc { case: "_X_", exp: &[
+            RecNum { changed: false, value: 0 },
+            RecNum { changed: true,  value: 5 },
+            RecNum { changed: true,  value: 0 },
+        ]},
+        ConstNumTc { case: "_|X", exp: &[
+            RecNum { changed: false, value: 0 },
+            RecNum { changed: true,  value: 5 },
+            RecNum { changed: false, value: 5 },
+        ]},
+        ConstNumTc { case: "X|_", exp: &[
+            RecNum { changed: false, value: 5 },
+            RecNum { changed: true,  value: 0 },
+            RecNum { changed: false, value: 0 },
+        ]},
+        ConstNumTc { case: "_|X|_", exp: &[
+            RecNum { changed: false, value: 0 },
+            RecNum { changed: true,  value: 5 },
+            RecNum { changed: false, value: 5 },
+            RecNum { changed: true,  value: 0 },
+            RecNum { changed: false, value: 0 },
+        ]},
     ];
 
     #[test]
