@@ -35,7 +35,7 @@
 //! | Character | Meaning |
 //! |-----------|---------|
 //! | `_`       | Low (`false` / `0`) |
-//! | `|`       | Edge — toggles the previous value |
+//! | `\|`      | Edge — toggles the previous value |
 //! | anything else (e.g. `‾`, `X`) | High (`true` / `1`) |
 //!
 //! Custom mappings can be provided via [`Builder::with_const_bool_map`],
